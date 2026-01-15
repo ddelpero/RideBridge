@@ -1,0 +1,9 @@
+# Clear the old rules first
+adb -s emulator-5554 reverse --remove-all
+adb -s emulator-5556 forward --remove-all
+
+# Rule 1: COMPUTER:6000 -> TABLET:6000
+adb -s emulator-5554 reverse tcp:6000 tcp:6000
+
+# Rule 2: PHONE:6000 -> COMPUTER:6000
+adb -s emulator-5556 forward tcp:6000 tcp:6000

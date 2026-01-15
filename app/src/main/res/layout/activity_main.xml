@@ -1,0 +1,64 @@
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:padding="30dp"
+    android:gravity="center">
+
+    <TextView
+        android:id="@+id/statusLabel"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="CURRENT MODE: SENDER (PHONE)"
+        android:textStyle="bold"
+        android:textSize="20sp"
+        android:textColor="#FF0000" />
+
+
+            <androidx.appcompat.widget.SwitchCompat
+            android:id="@+id/roleSwitch"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_margin="20dp"
+            android:scaleX="1.5"
+            android:scaleY="1.5" />
+
+
+    <View
+        android:id="@+id/statusIndicator"
+        android:layout_width="20dp"
+        android:layout_height="20dp"
+        android:background="#FF0000"
+        android:layout_marginTop="20dp"/> <TextView
+    android:id="@+id/logView"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:text="System: Offline"
+    android:textAlignment="center"
+    android:padding="20dp"
+    android:fontFamily="monospace"/>
+
+    <LinearLayout
+        android:id="@+id/playbackControls"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center"
+        android:visibility="gone"
+        android:layout_margin="20dp">
+
+        <Button android:id="@+id/btnPrev" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="PREV" />
+        <Button android:id="@+id/btnPlay" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="PLAY" />
+        <Button android:id="@+id/btnPause" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="PAUSE" />
+        <Button android:id="@+id/btnNext" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="NEXT" />
+    </LinearLayout>
+
+    <Button
+        android:id="@+id/btnStart"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Start Service"
+        android:filterTouchesWhenObscured="false"
+        android:clickable="true"
+        android:focusable="true" />
+</LinearLayout>
