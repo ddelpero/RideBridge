@@ -7,11 +7,13 @@ import android.content.pm.PackageManager;
 import android.os.Bundle;
 import android.view.View;
 import android.graphics.Color;
+import android.graphics.BitmapFactory;
 import android.widget.Button;
 import android.widget.CheckBox;
 import android.widget.TextView;
 import android.widget.Toast;
 import android.widget.ImageButton;
+import android.widget.ImageView;
 
 import android.widget.LinearLayout;
 import android.content.IntentFilter;
@@ -22,9 +24,14 @@ import android.media.session.MediaSessionManager;
 import android.content.ComponentName;
 import android.content.Context;
 
+import android.graphics.Bitmap;
+
 import org.json.JSONObject;
 
 import java.util.List;
+import java.io.ByteArrayOutputStream;
+
+import android.util.Base64;
 
 import android.content.SharedPreferences;
 
@@ -212,6 +219,21 @@ public class MainActivity extends AppCompatActivity {
                                 }
                             }
 
+                            if (json.has("albumArt")) {
+                                String encodedImage = json.getString("albumArt");
+                                ImageView imgArt = findViewById(R.id.imgAlbumArt);
+
+                                if (!encodedImage.isEmpty()) {
+                                    byte[] decodedString = Base64.decode(encodedImage, Base64.DEFAULT);
+                                    Bitmap decodedByte = BitmapFactory.decodeByteArray(decodedString, 0, decodedString.length);
+
+                                    runOnUiThread(() -> imgArt.setImageBitmap(decodedByte));
+                                } else {
+                                    // Set a default "no art" icon if empty
+                                    runOnUiThread(() -> imgArt.setImageResource(android.R.drawable.ic_menu_gallery));
+                                }
+                            }
+
                             // 2. Update Text Labels
                             statusLabel.setText("Status: Online (Connected)");
                             String track = json.optString("track", "Unknown Title");
@@ -293,9 +315,7 @@ public class MainActivity extends AppCompatActivity {
     private void syncMedia() {
         android.util.Log.i("RideBridge", "SENDER: syncMedia execution started"); // TRACE 1
         try {
-//            MediaSessionManager mm = (MediaSessionManager) getSystemService(Context.MEDIA_SESSION_SERVICE);
             ComponentName cn = new ComponentName("com.ddelpero.ridebridge", "com.ddelpero.ridebridge.ui.NotificationReceiver");
-//            List<MediaController> controllers = mm.getActiveSessions(new ComponentName(this, NotificationReceiver.class));
             List<MediaController> controllers = mm.getActiveSessions(cn);
             android.util.Log.d("RideBridge", "SENDER: Found " + controllers.size() + " controllers");
 
@@ -303,6 +323,7 @@ public class MainActivity extends AppCompatActivity {
                 android.util.Log.i("RideBridge", "SENDER: Found " + controllers.size() + " sessions"); // TRACE 2
                 MediaController player = controllers.get(0);
                 MediaMetadata meta = player.getMetadata();
+                String encodedImage = "";
 
                 player.unregisterCallback(controllerCallback); // Prevent duplicates
                 player.registerCallback(controllerCallback);
@@ -313,12 +334,27 @@ public class MainActivity extends AppCompatActivity {
                 boolean isPlaying = (state != null && state.getState() == android.media.session.PlaybackState.STATE_PLAYING);
 
                 if (meta != null) {
+                    // Try to get the bitmap
+                    Bitmap art = meta.getBitmap(MediaMetadata.METADATA_KEY_ALBUM_ART);
+                    // Fallback: some apps use METADATA_KEY_ART
+                    if (art == null) {
+                        art = meta.getBitmap(MediaMetadata.METADATA_KEY_ART);
+                    }
+
+                    if (art != null) {
+                        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+                        // Compress to JPEG to keep the JSON size manageable
+                        art.compress(Bitmap.CompressFormat.JPEG, 70, baos);
+                        byte[] b = baos.toByteArray();
+                        encodedImage = Base64.encodeToString(b, Base64.DEFAULT);
+                    }
+
                     JSONObject json = new JSONObject();
                     json.put("type", "media");
                     json.put("artist", meta.getString(MediaMetadata.METADATA_KEY_ARTIST));
                     json.put("track", meta.getString(MediaMetadata.METADATA_KEY_TITLE));
                     json.put("playing", isPlaying); // Added playing status
-
+                    json.put("albumArt", encodedImage);
                     String payload = json.toString();
                     android.util.Log.d("RideBridge", "SENDER: Preparing to send: " + payload);
                     bm.sendMessage(payload, command -> {

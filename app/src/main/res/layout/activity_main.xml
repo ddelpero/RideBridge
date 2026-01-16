@@ -60,44 +60,62 @@
         android:id="@+id/playbackControls"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="horizontal"
+        android:orientation="vertical"
         android:gravity="center"
         android:visibility="gone"
         android:layout_margin="20dp">
 
-        <ImageButton
-            android:id="@+id/btnPrev"
-            android:layout_width="48dp"
-            android:layout_height="48dp"
-            android:layout_marginEnd="20dp"
-            android:background="?attr/selectableItemBackgroundBorderless"
-            android:src="@android:drawable/ic_media_previous"
-            android:tint="#FFFFFF"
-            android:scaleType="fitCenter"
-            android:contentDescription="Previous Track" />
+        <ImageView
+            android:id="@+id/imgAlbumArt"
+            android:layout_width="200dp"
+            android:layout_height="200dp"
+            android:layout_marginBottom="20dp"
+            android:scaleType="centerCrop"
+            android:elevation="8dp"
+            android:background="#1A1A1A" />
 
-        <ImageButton
-            android:id="@+id/btnPlayPause"
-            android:layout_width="64dp"
-            android:layout_height="64dp"
-            android:layout_margin="10dp"
-            android:background="@drawable/circle_white"
-            android:src="@android:drawable/ic_media_play"
-            android:tint="#000000"
-            android:scaleType="centerInside"
-            android:padding="16dp"
-            android:elevation="4dp" />
+        <LinearLayout
+            android:id="@+id/innerplaybackControls"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center"
+            android:layout_margin="20dp">
 
-        <ImageButton
-            android:id="@+id/btnNext"
-            android:layout_width="48dp"
-            android:layout_height="48dp"
-            android:layout_marginStart="20dp"
-            android:background="?attr/selectableItemBackgroundBorderless"
-            android:src="@android:drawable/ic_media_next"
-            android:tint="#FFFFFF"
-            android:scaleType="fitCenter"
-            android:contentDescription="Next Track" />
+            <ImageButton
+                android:id="@+id/btnPrev"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:layout_marginEnd="20dp"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:src="@android:drawable/ic_media_previous"
+                android:tint="#FFFFFF"
+                android:scaleType="fitCenter"
+                android:contentDescription="Previous Track" />
+
+            <ImageButton
+                android:id="@+id/btnPlayPause"
+                android:layout_width="64dp"
+                android:layout_height="64dp"
+                android:layout_margin="10dp"
+                android:background="@drawable/circle_white"
+                android:src="@android:drawable/ic_media_play"
+                android:tint="#000000"
+                android:scaleType="centerInside"
+                android:padding="16dp"
+                android:elevation="4dp" />
+
+            <ImageButton
+                android:id="@+id/btnNext"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:layout_marginStart="20dp"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:src="@android:drawable/ic_media_next"
+                android:tint="#FFFFFF"
+                android:scaleType="fitCenter"
+                android:contentDescription="Next Track" />
+        </LinearLayout>
     </LinearLayout>
 
     <Button
