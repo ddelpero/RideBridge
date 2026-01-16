@@ -4,10 +4,12 @@ import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.net.ServerSocket;
 import java.net.Socket;
+
 import android.util.Log;
 
 import java.io.*;
 import java.net.*;
+
 import android.util.Log;
 
 
@@ -44,37 +46,22 @@ public class BluetoothManager {
         }
     }
 
-    // This mimics "Bluetooth Connect"
-//    public void connectToDevice(String ip, int port) {
-//        new Thread(() -> {
-//            try {
-//                persistentSocket = new java.net.Socket(ip, port);
-//                persistentOut = new java.io.PrintWriter(new java.io.BufferedWriter(
-//                        new java.io.OutputStreamWriter(persistentSocket.getOutputStream())), true);
-//                android.util.Log.d("RideBridge", "STREAM: Connected to pipe.");
-//            } catch (Exception e) {
-//                android.util.Log.e("RideBridge", "STREAM: Connection failed: " + e.getMessage());
-//            }
-//        }).start();
-//    }
-
     // Now sendMessage just pushes data into the existing pipe
     private OnMessageReceived phoneResponseListener;
+
     public void sendMessage(String message, OnMessageReceived listener) {
         this.phoneResponseListener = listener; // Save the callback
 
         if (!isActive) {
-            Log.d("RideBridge", "SENDER: Service not started. Blocking message.");
+            android.util.Log.d("RideBridge", "SENDER: Service not started. Blocking message.");
             return;
         }
 
         new Thread(() -> {
             try {
-                Log.d("RideBridge", "SENDER: sendmessage...");
-                //if (clientSocket == null || clientSocket.isClosed() || !clientSocket.isConnected()) {
-                //if (clientSocket == null || !clientSocket.isConnected() || clientSocket.isClosed() || out == null) {
+                android.util.Log.d("RideBridge", "SENDER: sendmessage...");
 
-                Log.d("RideBridge", String.format(
+                android.util.Log.d("RideBridge", String.format(
                         "DEBUG STATE: isPipeOpen=%b, clientSocket=%s, out=%s, isConnected=%b, isClosed=%b",
                         isPipeOpen,
                         (clientSocket == null ? "NULL" : "EXISTS"),
@@ -83,40 +70,61 @@ public class BluetoothManager {
                         (clientSocket != null && clientSocket.isClosed())
                 ));
 
-                if (out == null || out.checkError() || clientSocket == null || !clientSocket.isConnected()) {
-                    Log.d("RideBridge", "SENDER: Establishing new persistent pipe...");
-                    clientSocket = new Socket();
-                    clientSocket.connect(new InetSocketAddress("10.0.2.2", 6000), 2000);
-                    // Use 'true' for auto-flush
-                    isPipeOpen = true;
-                    out = new PrintWriter(new BufferedWriter(new OutputStreamWriter(clientSocket.getOutputStream())), true);
+                // RETRY LOOP: Keep trying to establish the pipe if it's dead
+                while (isActive && (out == null || out.checkError() || clientSocket == null || !clientSocket.isConnected())) {
+                    try {
+                        android.util.Log.d("RideBridge", "SENDER: Establishing new persistent pipe...");
+                        clientSocket = new java.net.Socket();
+                        clientSocket.connect(new java.net.InetSocketAddress("10.0.2.2", 6000), 2000);
 
-                    // START THE INBOUND READER ON THE SAME PIPE
-                    new Thread(() -> {
-                        try {
-                            BufferedReader in = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
-                            String incoming;
-                            while ((incoming = in.readLine()) != null) {
-                                Log.d("RideBridge", "SENDER: Received from Tablet: " + incoming);
-                                // Execute the callback passed from MainActivity
-                                if (phoneResponseListener != null) {
-                                    phoneResponseListener.onReceived(incoming);
+                        isPipeOpen = true;
+                        out = new java.io.PrintWriter(new java.io.BufferedWriter(new java.io.OutputStreamWriter(clientSocket.getOutputStream())), true);
+
+                        // START THE INBOUND READER ON THE SAME PIPE
+                        new Thread(() -> {
+                            try {
+                                java.io.BufferedReader in = new java.io.BufferedReader(new java.io.InputStreamReader(clientSocket.getInputStream()));
+                                String incoming;
+                                while ((incoming = in.readLine()) != null) {
+                                    android.util.Log.d("RideBridge", "SENDER: Received from Tablet: " + incoming);
+                                    if (phoneResponseListener != null) {
+                                        phoneResponseListener.onReceived(incoming);
+                                    }
                                 }
+                            } catch (Exception e) {
+                                android.util.Log.e("RideBridge", "SENDER: Read loop failed");
+                                isPipeOpen = false;
                             }
-                        } catch (Exception e) { Log.e("RideBridge", "SENDER: Read loop failed"); }
-                    }).start();
+                        }).start();
+
+                        // Successful connection: break the while loop to proceed to sending
+                        break;
+
+                    } catch (Exception e) {
+                        android.util.Log.d("RideBridge", "SENDER: Server not ready, retrying in 3s...");
+                        clientSocket = null;
+                        out = null;
+                        isPipeOpen = false;
+                        try {
+                            Thread.sleep(3000);
+                        } catch (InterruptedException ignored) {
+                        }
+
+                        // If isActive became false while we were sleeping, exit the loop
+                        if (!isActive) return;
+                    }
                 }
 
-                // CHANGE: Only send if 'out' was successfully initialized
+                // PUSH DATA: Now that the loop has finished (or was already connected)
                 if (out != null) {
                     out.println(message);
-                    Log.d("RideBridge", "SENDER: Actual data pushed to pipe: " + message);
+                    android.util.Log.d("RideBridge", "SENDER: Actual data pushed to pipe: " + message);
                 } else {
-                    Log.e("RideBridge", "SENDER: Failed to send - PrintWriter is null.");
+                    android.util.Log.e("RideBridge", "SENDER: Failed to send - PrintWriter is null.");
                 }
 
             } catch (Exception e) {
-                Log.e("RideBridge", "SENDER: Send Error: " + e.getMessage());
+                android.util.Log.e("RideBridge", "SENDER: Send Error: " + e.getMessage());
                 clientSocket = null;
                 isPipeOpen = false;
                 out = null;

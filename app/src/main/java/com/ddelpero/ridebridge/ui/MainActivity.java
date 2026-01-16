@@ -8,8 +8,10 @@ import android.os.Bundle;
 import android.view.View;
 import android.graphics.Color;
 import android.widget.Button;
+import android.widget.CheckBox;
 import android.widget.TextView;
 import android.widget.Toast;
+import android.widget.ImageButton;
 
 import android.widget.LinearLayout;
 import android.content.IntentFilter;
@@ -19,7 +21,9 @@ import android.media.session.MediaController;
 import android.media.session.MediaSessionManager;
 import android.content.ComponentName;
 import android.content.Context;
+
 import org.json.JSONObject;
+
 import java.util.List;
 
 import android.content.SharedPreferences;
@@ -27,7 +31,6 @@ import android.content.SharedPreferences;
 import com.ddelpero.ridebridge.R;
 import com.ddelpero.ridebridge.core.BluetoothManager;
 import com.ddelpero.ridebridge.core.BluetoothManager.OnMessageReceived;
-
 
 
 public class MainActivity extends AppCompatActivity {
@@ -39,17 +42,24 @@ public class MainActivity extends AppCompatActivity {
     private TextView logView;
     private Button btnStart;
     private SwitchCompat roleSwitch;
+    private CheckBox autoStartCheckBox;
     private View statusIndicator;
+
+    private boolean isCurrentlyPlaying = false; // Track state for the toggle
 
     private MediaSessionManager mm;
 
-//    private void saveSettings() {
-//        SharedPreferences prefs = getSharedPreferences("RideBridgePrefs", MODE_PRIVATE);
-//        prefs.edit()
-//                .putBoolean("is_tablet", roleSwitch.isChecked())
-//                .putBoolean("auto_start", autoStartCheckBox.isChecked()) // Assuming you add a checkbox
-//                .apply();
-//    }
+    private void saveRoleSettings() {
+        android.content.SharedPreferences prefs = getSharedPreferences("RideBridgePrefs", MODE_PRIVATE);
+        prefs.edit().putBoolean("is_tablet", roleSwitch.isChecked()).apply();
+        android.util.Log.d("RideBridge", "Role Saved: " + roleSwitch.isChecked());
+    }
+
+    private void saveAutoStartSettings() {
+        android.content.SharedPreferences prefs = getSharedPreferences("RideBridgePrefs", MODE_PRIVATE);
+        prefs.edit().putBoolean("auto_start", autoStartCheckBox.isChecked()).apply();
+        android.util.Log.d("RideBridge", "AutoStart Saved: " + autoStartCheckBox.isChecked());
+    }
 
     private final android.content.BroadcastReceiver mediaSyncReceiver = new android.content.BroadcastReceiver() {
         @Override
@@ -95,16 +105,11 @@ public class MainActivity extends AppCompatActivity {
         logView = findViewById(R.id.logView);
         btnStart = findViewById(R.id.btnStart);
         roleSwitch = findViewById(R.id.roleSwitch);
+        autoStartCheckBox = findViewById(R.id.autoStartCheckBox);
         statusIndicator = findViewById(R.id.statusIndicator);
 
         // Initialize the manager here
         mm = (MediaSessionManager) getSystemService(Context.MEDIA_SESSION_SERVICE);
-
-        if (btnStart != null) {
-            android.util.Log.d("RideBridge", "SENDER_DEBUG: Button found. Object ID: " + System.identityHashCode(btnStart));
-        } else {
-            android.util.Log.e("RideBridge", "SENDER_DEBUG: Button NOT found!");
-        }
 
         registerReceiver(mediaSyncReceiver,
                 new android.content.IntentFilter("com.ddelpero.SYNC_MEDIA"),
@@ -118,17 +123,9 @@ public class MainActivity extends AppCompatActivity {
                 PackageManager.DONT_KILL_APP
         );
 
-//        // AUTOSTART LOGIC
-//        roleSwitch.setChecked(true); // Default to Receiver
-//        statusLabel.setText("CURRENT MODE: RECEIVER (AUTO)");
-//        statusLabel.setTextColor(Color.GREEN);
-//        statusIndicator.setBackgroundColor(Color.GREEN);
-//        logView.setText("SYSTEM: Autostarting Server...");
-//
-//        // Start listening immediately
-//        bm.startEmulatorListener(data -> {
-//            runOnUiThread(() -> logView.setText(data));
-//        }, "TABLET");
+        //Load settings
+        SharedPreferences prefs = getSharedPreferences("RideBridgePrefs", MODE_PRIVATE);
+
 
         // 3. Switch Listener: Changes UI immediately when toggled
         LinearLayout playbackControls = findViewById(R.id.playbackControls);
@@ -140,8 +137,16 @@ public class MainActivity extends AppCompatActivity {
                 playbackControls.setVisibility(View.VISIBLE); // Show buttons on Tablet
 
                 // Tablet Logic: Send strings when buttons are clicked
-                findViewById(R.id.btnPlay).setOnClickListener(v -> bm.sendCommandToPhone("PLAY"));
-                findViewById(R.id.btnPause).setOnClickListener(v -> bm.sendCommandToPhone("PAUSE"));
+                ImageButton btnPlayPause = findViewById(R.id.btnPlayPause);
+                btnPlayPause.setOnClickListener(v -> {
+                    // Toggle logic based on the last known state
+                    if (isCurrentlyPlaying) {
+                        bm.sendCommandToPhone("PAUSE");
+                    } else {
+                        bm.sendCommandToPhone("PLAY");
+                    }
+                });
+
                 findViewById(R.id.btnNext).setOnClickListener(v -> bm.sendCommandToPhone("NEXT"));
                 findViewById(R.id.btnPrev).setOnClickListener(v -> bm.sendCommandToPhone("PREV"));
             } else {
@@ -149,9 +154,15 @@ public class MainActivity extends AppCompatActivity {
                 statusLabel.setTextColor(Color.RED);
                 playbackControls.setVisibility(View.GONE); // Hide buttons on Phone
             }
+            saveRoleSettings();
         });
+        roleSwitch.setChecked(prefs.getBoolean("is_tablet", false));
 
+        autoStartCheckBox.setChecked(prefs.getBoolean("auto_start", false));
 
+        autoStartCheckBox.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            saveAutoStartSettings();
+        });
 
         // 4. Button Listener: Actually triggers the BluetoothManager
         btnStart.setOnClickListener(v -> {
@@ -167,11 +178,6 @@ public class MainActivity extends AppCompatActivity {
 
             // 2. Check the state BEFORE we do anything
             android.util.Log.d("RideBridge", "DEBUG PROOF: isServiceRunning is currently: " + isServiceRunning);
-
-//            if (isServiceRunning) {
-//                android.util.Log.w("RideBridge", "DEBUG PROOF: Execution BLOCKED by boolean check.");
-//                return;
-//            }
 
             // 3. Dump the stack trace to see WHAT triggered this click
             // This will show up in Logcat and tell us if it's a UI click,
@@ -190,37 +196,52 @@ public class MainActivity extends AppCompatActivity {
 
                 bm.startEmulatorListener(data -> {
                     runOnUiThread(() -> {
-                        statusLabel.setText("Status: Online (Connected)");
-                        logView.setText("RECEIVED: " + data);
+//                        statusLabel.setText("Status: Online (Connected)");
+//                        logView.setText("RECEIVED: " + data);
+                        try {
+                            org.json.JSONObject json = new org.json.JSONObject(data);
+
+                            // 1. Update the Play/Pause Icon
+                            if (json.has("playing")) {
+                                isCurrentlyPlaying = json.getBoolean("playing");
+                                android.widget.ImageButton btnPlayPause = findViewById(R.id.btnPlayPause);
+                                if (isCurrentlyPlaying) {
+                                    btnPlayPause.setImageResource(android.R.drawable.ic_media_pause);
+                                } else {
+                                    btnPlayPause.setImageResource(android.R.drawable.ic_media_play);
+                                }
+                            }
+
+                            // 2. Update Text Labels
+                            statusLabel.setText("Status: Online (Connected)");
+                            String track = json.optString("track", "Unknown Title");
+                            String artist = json.optString("artist", "Unknown Artist");
+                            logView.setText(track + "\n" + artist);
+
+                        } catch (Exception e) {
+                            // Fallback if the data isn't JSON
+                            logView.setText("RECEIVED: " + data);
+                        }
                     });
                 }, "TABLET_RECEIVER");
             } else {
                 statusLabel.setText("Status: Sender Active");
                 logView.setText("Searching for Media Sessions...");
 
-//                // 2. Start the listener so the Phone can hear Tablet commands
-//                bm.startEmulatorListener(data -> {
-//                    if (data.startsWith("CONTROL:")) {
-//                        handleRemoteControl(data.split(":")[1]);
-//                    }
-//                }, "PHONE_SENDER");
-
-//                // 3. Sync initial media (the delay ensures the socket is ready)
-//                new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(() -> {
-//                    syncMedia();
-//                }, 500);
 
                 android.util.Log.d("RideBridge", "DEBUG: Sender mode initiated. Calling syncMedia()...");
                 bm.setServiceActive(true);
                 syncMedia();
-
-                // Add a check to see if logView was updated by syncMedia
-//                if (logView.getText().toString().equals("Searching for Media Sessions...")) {
-//                    logView.setText("SYSTEM: Search timed out or failed.");
-//                }
             }
 
         });
+
+        if (prefs.getBoolean("auto_start", false)) {
+            new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(() -> {
+                android.util.Log.d("RideBridge", "MAIN: Executing Auto-Start");
+                btnStart.performClick();
+            }, 1000);
+        }
     }
 
     private void handleRemoteControl(String command) {
@@ -236,17 +257,38 @@ public class MainActivity extends AppCompatActivity {
                     android.util.Log.d("RideBridge", "PHONE: Executing " + command);
 
                     switch (command) {
-                        case "PLAY":  controls.play(); break;
-                        case "PAUSE": controls.pause(); break;
-                        case "NEXT":  controls.skipToNext(); break;
-                        case "PREV":  controls.skipToPrevious(); break;
+                        case "PLAY":
+                            controls.play();
+                            break;
+                        case "PAUSE":
+                            controls.pause();
+                            break;
+                        case "NEXT":
+                            controls.skipToNext();
+                            break;
+                        case "PREV":
+                            controls.skipToPrevious();
+                            break;
                     }
+
+
                 }
             } catch (Exception e) {
                 android.util.Log.e("RideBridge", "PHONE: Control Error: " + e.getMessage());
             }
         });
     }
+
+    private final MediaController.Callback controllerCallback = new MediaController.Callback() {
+        @Override
+        public void onPlaybackStateChanged(android.media.session.PlaybackState state) {
+            if (state != null) {
+                // This fires precisely when YT Music flips from 2 (Paused) to 3 (Playing)
+                android.util.Log.d("RideBridge", "SENDER: Internal state updated: " + state.getState());
+                syncMedia();
+            }
+        }
+    };
 
     private void syncMedia() {
         android.util.Log.i("RideBridge", "SENDER: syncMedia execution started"); // TRACE 1
@@ -262,8 +304,12 @@ public class MainActivity extends AppCompatActivity {
                 MediaController player = controllers.get(0);
                 MediaMetadata meta = player.getMetadata();
 
+                player.unregisterCallback(controllerCallback); // Prevent duplicates
+                player.registerCallback(controllerCallback);
+
                 // Get Playback State (Playing vs Paused)
                 android.media.session.PlaybackState state = player.getPlaybackState();
+
                 boolean isPlaying = (state != null && state.getState() == android.media.session.PlaybackState.STATE_PLAYING);
 
                 if (meta != null) {
@@ -276,8 +322,9 @@ public class MainActivity extends AppCompatActivity {
                     String payload = json.toString();
                     android.util.Log.d("RideBridge", "SENDER: Preparing to send: " + payload);
                     bm.sendMessage(payload, command -> {
-                        // This is the implementation of OnMessageReceived
-                        handleRemoteControl(command);}
+                                // This is the implementation of OnMessageReceived
+                                handleRemoteControl(command);
+                            }
                     );
                 } else {
                     android.util.Log.d("RideBridge", "SENDER: Player found, but no metadata (is music playing?)");
