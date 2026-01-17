@@ -35,6 +35,13 @@ import android.util.Base64;
 
 import android.content.SharedPreferences;
 
+import android.os.Handler;
+import android.os.Looper;
+import android.os.SystemClock;
+import android.widget.SeekBar;
+
+import java.util.Locale;
+
 import com.ddelpero.ridebridge.R;
 import com.ddelpero.ridebridge.core.BluetoothManager;
 import com.ddelpero.ridebridge.core.BluetoothManager.OnMessageReceived;
@@ -156,6 +163,7 @@ public class MainActivity extends AppCompatActivity {
 
                 findViewById(R.id.btnNext).setOnClickListener(v -> bm.sendCommandToPhone("NEXT"));
                 findViewById(R.id.btnPrev).setOnClickListener(v -> bm.sendCommandToPhone("PREV"));
+
             } else {
                 statusLabel.setText("CURRENT MODE: SENDER (PHONE)");
                 statusLabel.setTextColor(Color.RED);
@@ -201,16 +209,39 @@ public class MainActivity extends AppCompatActivity {
                 statusLabel.setText("Status: Online (Listening...)"); // Add this
                 logView.setText("Waiting for data from Phone...");
 
+                SeekBar seekBar = findViewById(R.id.mediaSeekBar);
+                seekBar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+                    @Override
+                    public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
+                        // We only care if the USER dragged it, not the auto-ticker
+                        if (fromUser) {
+                            updateTimeLabels(progress, totalDuration);
+                        }
+                    }
+
+                    @Override
+                    public void onStartTrackingTouch(SeekBar seekBar) {
+                        // Optional: Pause the local ticker while dragging so it doesn't fight you
+                    }
+
+                    @Override
+                    public void onStopTrackingTouch(SeekBar seekBar) {
+                        // When the user lets go, send the new position to the Phone
+                        int progress = seekBar.getProgress();
+                        bm.sendCommandToPhone("SEEK:" + progress);
+                    }
+                });
+
+                progressHandler.post(progressRunnable);
+
                 bm.startEmulatorListener(data -> {
                     runOnUiThread(() -> {
-//                        statusLabel.setText("Status: Online (Connected)");
-//                        logView.setText("RECEIVED: " + data);
                         try {
                             org.json.JSONObject json = new org.json.JSONObject(data);
+                            isCurrentlyPlaying = json.getBoolean("playing");
 
                             // 1. Update the Play/Pause Icon
                             if (json.has("playing")) {
-                                isCurrentlyPlaying = json.getBoolean("playing");
                                 android.widget.ImageButton btnPlayPause = findViewById(R.id.btnPlayPause);
                                 if (isCurrentlyPlaying) {
                                     btnPlayPause.setImageResource(android.R.drawable.ic_media_pause);
@@ -232,6 +263,19 @@ public class MainActivity extends AppCompatActivity {
                                     // Set a default "no art" icon if empty
                                     runOnUiThread(() -> imgArt.setImageResource(android.R.drawable.ic_menu_gallery));
                                 }
+                            }
+
+                            if (json.has("position") && json.has("duration")) {
+                                long pos = json.getLong("position");
+                                long dur = json.getLong("duration");
+                                //float speed = (float) json.getDouble("speed");
+                                float speed = isCurrentlyPlaying ? (float) json.optDouble("speed", 1.0) : 0.0f;
+                                // If not playing, we force speed to 0 so the 'delta' math doesn't add anything
+
+                                // CALL THE UPDATE HERE
+                                runOnUiThread(() -> {
+                                    updateSeekBarData(pos, dur, speed);
+                                });
                             }
 
                             // 2. Update Text Labels
@@ -278,22 +322,27 @@ public class MainActivity extends AppCompatActivity {
                     MediaController.TransportControls controls = controllers.get(0).getTransportControls();
                     android.util.Log.d("RideBridge", "PHONE: Executing " + command);
 
-                    switch (command) {
-                        case "PLAY":
-                            controls.play();
-                            break;
-                        case "PAUSE":
-                            controls.pause();
-                            break;
-                        case "NEXT":
-                            controls.skipToNext();
-                            break;
-                        case "PREV":
-                            controls.skipToPrevious();
-                            break;
+                    if (command.startsWith("SEEK:")) {
+                        // Extract the millisecond value from "SEEK:12345"
+                        long seekPos = Long.parseLong(command.split(":")[1]);
+                        android.util.Log.d("RideBridge", "PHONE: Seeking to " + seekPos);
+                        controls.seekTo(seekPos);
+                    } else {
+                        switch (command) {
+                            case "PLAY":
+                                controls.play();
+                                break;
+                            case "PAUSE":
+                                controls.pause();
+                                break;
+                            case "NEXT":
+                                controls.skipToNext();
+                                break;
+                            case "PREV":
+                                controls.skipToPrevious();
+                                break;
+                        }
                     }
-
-
                 }
             } catch (Exception e) {
                 android.util.Log.e("RideBridge", "PHONE: Control Error: " + e.getMessage());
@@ -349,12 +398,18 @@ public class MainActivity extends AppCompatActivity {
                         encodedImage = Base64.encodeToString(b, Base64.DEFAULT);
                     }
 
+                    long position = (state != null) ? state.getPosition() : 0;
+                    long duration = (meta != null) ? meta.getLong(MediaMetadata.METADATA_KEY_DURATION) : 0;
+
                     JSONObject json = new JSONObject();
                     json.put("type", "media");
                     json.put("artist", meta.getString(MediaMetadata.METADATA_KEY_ARTIST));
                     json.put("track", meta.getString(MediaMetadata.METADATA_KEY_TITLE));
                     json.put("playing", isPlaying); // Added playing status
                     json.put("albumArt", encodedImage);
+                    json.put("position", position);
+                    json.put("duration", duration);
+                    json.put("speed", (state != null) ? state.getPlaybackSpeed() : 0f);
                     String payload = json.toString();
                     android.util.Log.d("RideBridge", "SENDER: Preparing to send: " + payload);
                     bm.sendMessage(payload, command -> {
@@ -376,10 +431,65 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-//    public static class NotificationReceiver extends android.service.notification.NotificationListenerService {
-//        // This is a stub that allows the app to appear in the Settings list.
-//        // In the next step, we can move the media logic here for automatic syncing.
-//    }
+    private long lastPosition = 0;
+    private long totalDuration = 0;
+    private float playbackSpeed = 0;
+    private long lastUpdateTime = 0;
+
+    // Create a handler to "tick" the seekbar
+    private final Handler progressHandler = new Handler(Looper.getMainLooper());
+
+    private final Runnable progressRunnable = new Runnable() {
+        @Override
+        public void run() {
+            // 1. Calculate the current position
+            long currentPos;
+            if (playbackSpeed > 0 && totalDuration > 0) {
+                // It's playing: calculate movement based on time elapsed
+                long timeDelta = SystemClock.elapsedRealtime() - lastUpdateTime;
+                currentPos = lastPosition + (long) (timeDelta * playbackSpeed);
+                if (currentPos > totalDuration) currentPos = totalDuration;
+            } else {
+                // It's paused: stay exactly where the Phone last told us
+                currentPos = lastPosition;
+            }
+
+            // 2. ALWAYS update the UI with the result
+            SeekBar seekBar = findViewById(R.id.mediaSeekBar);
+            if (seekBar != null) {
+                seekBar.setProgress((int) currentPos);
+                updateTimeLabels(currentPos, totalDuration); // This fixes the 0:00 issue
+            }
+
+            progressHandler.postDelayed(this, 500);
+        }
+    };
+
+    // Call this when JSON is received
+    private void updateSeekBarData(long pos, long dur, float speed) {
+        this.lastPosition = pos;
+        this.totalDuration = dur;
+        this.playbackSpeed = speed;
+        this.lastUpdateTime = SystemClock.elapsedRealtime();
+
+        SeekBar seekBar = findViewById(R.id.mediaSeekBar);
+        seekBar.setMax((int) dur);
+        seekBar.setProgress((int) pos);
+    }
+
+    private void updateTimeLabels(long currentMs, long totalMs) {
+        TextView txtCurrent = findViewById(R.id.txtCurrentTime);
+        TextView txtTotal = findViewById(R.id.txtTotalTime);
+
+        txtCurrent.setText(formatTime(currentMs));
+        txtTotal.setText(formatTime(totalMs));
+    }
+
+    private String formatTime(long millis) {
+        int seconds = (int) (millis / 1000) % 60;
+        int minutes = (int) ((millis / (1000 * 60)) % 60);
+        return String.format(Locale.getDefault(), "%d:%02d", minutes, seconds);
+    }
 
     @Override
     protected void onDestroy() {

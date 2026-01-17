@@ -75,6 +75,36 @@
             android:background="#1A1A1A" />
 
         <LinearLayout
+            android:layout_height="wrap_content"
+            android:scaleType="centerCrop"
+            android:layout_width="200dp"
+            android:orientation="horizontal"
+            android:padding="10dp">
+
+            <TextView
+                android:id="@+id/txtCurrentTime"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="0:00"
+                android:textColor="#FFFFFF" />
+
+            <SeekBar
+                android:id="@+id/mediaSeekBar"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:progressTint="#FFFFFF"
+                android:thumbTint="#FFFFFF" />
+
+            <TextView
+                android:id="@+id/txtTotalTime"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="0:00"
+                android:textColor="#FFFFFF" />
+        </LinearLayout>
+
+        <LinearLayout
             android:id="@+id/innerplaybackControls"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
