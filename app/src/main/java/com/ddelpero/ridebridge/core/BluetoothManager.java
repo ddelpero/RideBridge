@@ -117,8 +117,12 @@ public class BluetoothManager {
 
                 // PUSH DATA: Now that the loop has finished (or was already connected)
                 if (out != null) {
+                    // Log message before sending (strip albumArt for readability)
+                    String logMessage = message.replaceAll("\"albumArt\":\"[^\"]*\"", "\"albumArt\":\"[base64...]\"");
+                    android.util.Log.d("RideBridge", "SENDER: Pushing message: " + logMessage);
+                    
                     out.println(message);
-                    android.util.Log.d("RideBridge", "SENDER: Actual data pushed to pipe: " + message);
+                    android.util.Log.d("RideBridge", "SENDER: Actual data pushed to pipe: " + logMessage);
                 } else {
                     android.util.Log.e("RideBridge", "SENDER: Failed to send - PrintWriter is null.");
                 }

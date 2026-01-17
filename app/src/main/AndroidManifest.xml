@@ -3,6 +3,7 @@
 
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
     <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30" />
     <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" android:maxSdkVersion="30" />
@@ -21,13 +22,26 @@
         android:theme="@style/Theme.RideBridge">
 
         <activity
-            android:name=".ui.MainActivity"
+            android:name=".ui.SettingsActivity"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <activity
+            android:name=".ui.TabletWidgetActivity"
+            android:exported="false" />
+
+        <activity
+            android:name=".widget.RideBridgeWidgetActivity"
+            android:exported="false" />
+
+        <service
+            android:name="com.ddelpero.ridebridge.core.RideBridgeService"
+            android:label="RideBridge Background Service"
+            android:exported="false" />
 
         <service
             android:name="com.ddelpero.ridebridge.ui.NotificationReceiver"
@@ -40,5 +54,25 @@
                 <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
         </service>
+
+        <receiver
+            android:name=".ui.BootReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+            </intent-filter>
+        </receiver>
+
+        <receiver
+            android:name=".widget.RideBridgeWidgetProvider"
+            android:label="RideBridge Widget"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_ridebridge" />
+        </receiver>
     </application>
 </manifest>

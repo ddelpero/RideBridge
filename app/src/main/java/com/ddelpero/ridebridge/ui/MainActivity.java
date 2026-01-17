@@ -255,24 +255,11 @@ public class MainActivity extends AppCompatActivity {
     private void initializePhoneMode() {
         android.util.Log.d("RideBridge", "MAIN: Initializing PHONE (Source) mode");
         
-        // LAZY INITIALIZATION: Only create SourceController when entering phone mode
-        if (sourceController == null) {
-            sourceController = new SourceController(this, bluetoothManager);
-            
-            // Set up source controller listeners NOW that we're using it
-            sourceController.setSourceDataListener(mediaJson -> {
-                android.util.Log.d("RideBridge", "MAIN: Media data ready from source");
-            });
-
-            sourceController.setRemoteCommandListener(command -> {
-                android.util.Log.d("RideBridge", "MAIN: Remote command received: " + command);
-            });
-        }
+        // Phone mode is now handled entirely by RideBridgeService
+        // Do NOT create SourceController here - it conflicts with service's instance
         
         statusLabel.setText("Status: Sender Active");
-        logView.setText("Searching for Media Sessions...");
-
-        sourceController.start();
+        logView.setText("RideBridgeService is managing phone mode...");
     }
 
     private void updateDisplayUI(DisplayController.MediaData mediaData) {

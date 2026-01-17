@@ -6,12 +6,15 @@ import android.util.Base64;
 import org.json.JSONObject;
 
 import com.ddelpero.ridebridge.core.BluetoothManager;
+import com.ddelpero.ridebridge.core.RideBridgeService;
 
 public class DisplayController {
 
     private final BluetoothManager bluetoothManager;
+    private final RideBridgeService service;
     private OnDisplayDataReceived displayListener;
     private OnCommandSend commandSendListener;
+    private OnRawDataReceived rawDataListener;
 
     public interface OnDisplayDataReceived {
         void onMediaDataReceived(MediaData mediaData);
@@ -19,6 +22,10 @@ public class DisplayController {
 
     public interface OnCommandSend {
         void onSendCommand(String command);
+    }
+    
+    public interface OnRawDataReceived {
+        void onRawDataReceived(String rawJson);
     }
 
     public static class MediaData {
@@ -40,8 +47,23 @@ public class DisplayController {
         }
     }
 
-    public DisplayController(BluetoothManager bluetoothManager) {
+    public DisplayController(RideBridgeService service, BluetoothManager bluetoothManager) {
+        this.service = service;
         this.bluetoothManager = bluetoothManager;
+    }
+
+    // Backward compatibility constructor for code that doesn't have service reference
+    public DisplayController(BluetoothManager bluetoothManager) {
+        this.service = null;
+        this.bluetoothManager = bluetoothManager;
+    }
+
+    private void log(String message) {
+        if (service != null) {
+            service.log(message);
+        } else {
+            Log.d("RideBridge", message);
+        }
     }
 
     public void setDisplayDataListener(OnDisplayDataReceived listener) {
@@ -51,21 +73,40 @@ public class DisplayController {
     public void setCommandSendListener(OnCommandSend listener) {
         this.commandSendListener = listener;
     }
+    
+    public void setRawDataListener(OnRawDataReceived listener) {
+        this.rawDataListener = listener;
+    }
 
     public void startListening() {
-        Log.d("RideBridge", "DISPLAY: Starting listener for tablet mode...");
+        log("DISPLAY: Starting listener for tablet mode...");
 
         bluetoothManager.startEmulatorListener(data -> {
-            Log.d("RideBridge", "DISPLAY: Raw data received: " + data);
+            log("DISPLAY: Raw data received: " + data);
+            
+            // Notify raw data listener
+            if (rawDataListener != null) {
+                rawDataListener.onRawDataReceived(data);
+            }
+            
             try {
                 JSONObject json = new JSONObject(data);
                 MediaData mediaData = parseMediaData(json);
 
+                log("DISPLAY: Parsed media - track=" + mediaData.track + ", artist=" + mediaData.artist);
+                
+                // Update widget
+                if (service != null) {
+                    service.updateWidget(mediaData);
+                }
+                
                 if (displayListener != null) {
+                    log("DISPLAY: Calling displayListener callback");
                     displayListener.onMediaDataReceived(mediaData);
                 }
             } catch (Exception e) {
-                Log.e("RideBridge", "DISPLAY: Error parsing media data: " + e.getMessage());
+                log("DISPLAY: Error parsing media data: " + e.getMessage());
+                e.printStackTrace();
             }
         }, "TABLET_RECEIVER");
     }
@@ -90,21 +131,21 @@ public class DisplayController {
                     data.albumArt = android.graphics.BitmapFactory.decodeByteArray(
                             decodedBytes, 0, decodedBytes.length
                     );
-                    Log.d("RideBridge", "DISPLAY: Album art decoded successfully");
+                    log("DISPLAY: Album art decoded successfully");
                 } catch (Exception e) {
-                    Log.w("RideBridge", "DISPLAY: Failed to decode album art: " + e.getMessage());
+                    log("DISPLAY: Failed to decode album art: " + e.getMessage());
                 }
             }
 
         } catch (Exception e) {
-            Log.e("RideBridge", "DISPLAY: Error parsing JSON: " + e.getMessage());
+            log("DISPLAY: Error parsing JSON: " + e.getMessage());
         }
 
         return data;
     }
 
     public void sendPlayCommand() {
-        Log.d("RideBridge", "DISPLAY: Sending PLAY command");
+        log("DISPLAY: Sending PLAY command");
         bluetoothManager.sendCommandToPhone("PLAY");
         if (commandSendListener != null) {
             commandSendListener.onSendCommand("PLAY");
@@ -112,7 +153,7 @@ public class DisplayController {
     }
 
     public void sendPauseCommand() {
-        Log.d("RideBridge", "DISPLAY: Sending PAUSE command");
+        log("DISPLAY: Sending PAUSE command");
         bluetoothManager.sendCommandToPhone("PAUSE");
         if (commandSendListener != null) {
             commandSendListener.onSendCommand("PAUSE");
@@ -120,7 +161,7 @@ public class DisplayController {
     }
 
     public void sendNextCommand() {
-        Log.d("RideBridge", "DISPLAY: Sending NEXT command");
+        log("DISPLAY: Sending NEXT command");
         bluetoothManager.sendCommandToPhone("NEXT");
         if (commandSendListener != null) {
             commandSendListener.onSendCommand("NEXT");
@@ -128,7 +169,7 @@ public class DisplayController {
     }
 
     public void sendPreviousCommand() {
-        Log.d("RideBridge", "DISPLAY: Sending PREVIOUS command");
+        log("DISPLAY: Sending PREVIOUS command");
         bluetoothManager.sendCommandToPhone("PREV");
         if (commandSendListener != null) {
             commandSendListener.onSendCommand("PREV");
@@ -137,7 +178,7 @@ public class DisplayController {
 
     public void sendSeekCommand(long positionMs) {
         String command = "SEEK:" + positionMs;
-        Log.d("RideBridge", "DISPLAY: Sending SEEK command: " + command);
+        log("DISPLAY: Sending SEEK command: " + command);
         bluetoothManager.sendCommandToPhone(command);
         if (commandSendListener != null) {
             commandSendListener.onSendCommand(command);
