@@ -7,34 +7,16 @@ import android.content.pm.PackageManager;
 import android.os.Bundle;
 import android.view.View;
 import android.graphics.Color;
-import android.graphics.BitmapFactory;
 import android.widget.Button;
 import android.widget.CheckBox;
 import android.widget.TextView;
-import android.widget.Toast;
 import android.widget.ImageButton;
 import android.widget.ImageView;
-
 import android.widget.LinearLayout;
 import android.content.IntentFilter;
-
-import android.media.MediaMetadata;
-import android.media.session.MediaController;
-import android.media.session.MediaSessionManager;
 import android.content.ComponentName;
 import android.content.Context;
-
-import android.graphics.Bitmap;
-
-import org.json.JSONObject;
-
-import java.util.List;
-import java.io.ByteArrayOutputStream;
-
-import android.util.Base64;
-
 import android.content.SharedPreferences;
-
 import android.os.Handler;
 import android.os.Looper;
 import android.os.SystemClock;
@@ -44,14 +26,18 @@ import java.util.Locale;
 
 import com.ddelpero.ridebridge.R;
 import com.ddelpero.ridebridge.core.BluetoothManager;
-import com.ddelpero.ridebridge.core.BluetoothManager.OnMessageReceived;
+import com.ddelpero.ridebridge.display.DisplayController;
+import com.ddelpero.ridebridge.source.SourceController;
 
 
 public class MainActivity extends AppCompatActivity {
 
     // 1. Class-level declarations (the "fields")
     private boolean isServiceRunning = false;
-    private BluetoothManager bm = new BluetoothManager();
+    private BluetoothManager bluetoothManager = new BluetoothManager();
+    private DisplayController displayController;
+    private SourceController sourceController;
+    
     private TextView statusLabel;
     private TextView logView;
     private Button btnStart;
@@ -61,16 +47,22 @@ public class MainActivity extends AppCompatActivity {
 
     private boolean isCurrentlyPlaying = false; // Track state for the toggle
 
-    private MediaSessionManager mm;
+    private long lastPosition = 0;
+    private long totalDuration = 0;
+    private float playbackSpeed = 0;
+    private long lastUpdateTime = 0;
+
+    // Create a handler to "tick" the seekbar
+    private final Handler progressHandler = new Handler(Looper.getMainLooper());
 
     private void saveRoleSettings() {
-        android.content.SharedPreferences prefs = getSharedPreferences("RideBridgePrefs", MODE_PRIVATE);
+        SharedPreferences prefs = getSharedPreferences("RideBridgePrefs", MODE_PRIVATE);
         prefs.edit().putBoolean("is_tablet", roleSwitch.isChecked()).apply();
         android.util.Log.d("RideBridge", "Role Saved: " + roleSwitch.isChecked());
     }
 
     private void saveAutoStartSettings() {
-        android.content.SharedPreferences prefs = getSharedPreferences("RideBridgePrefs", MODE_PRIVATE);
+        SharedPreferences prefs = getSharedPreferences("RideBridgePrefs", MODE_PRIVATE);
         prefs.edit().putBoolean("auto_start", autoStartCheckBox.isChecked()).apply();
         android.util.Log.d("RideBridge", "AutoStart Saved: " + autoStartCheckBox.isChecked());
     }
@@ -78,11 +70,12 @@ public class MainActivity extends AppCompatActivity {
     private final android.content.BroadcastReceiver mediaSyncReceiver = new android.content.BroadcastReceiver() {
         @Override
         public void onReceive(Context context, android.content.Intent intent) {
-            android.util.Log.d("RideBridge", "MAIN: Received broadcast, triggering syncMedia()...");
+            android.util.Log.d("RideBridge", "MAIN: Received broadcast, triggering source sync...");
             // Add a tiny delay (200ms) to let the Android System update the MediaSession
-            // before we try to read the new track name.
             new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(() -> {
-                syncMedia();
+                if (sourceController != null) {
+                    sourceController.syncMediaData();
+                }
             }, 200);
         }
     };
@@ -122,15 +115,15 @@ public class MainActivity extends AppCompatActivity {
         autoStartCheckBox = findViewById(R.id.autoStartCheckBox);
         statusIndicator = findViewById(R.id.statusIndicator);
 
-        // Initialize the manager here
-        mm = (MediaSessionManager) getSystemService(Context.MEDIA_SESSION_SERVICE);
+        // Don't initialize controllers yet - they're created on-demand
+        // based on which mode the user selects (phone vs tablet)
 
         registerReceiver(mediaSyncReceiver,
-                new android.content.IntentFilter("com.ddelpero.SYNC_MEDIA"),
+                new IntentFilter("com.ddelpero.SYNC_MEDIA"),
                 Context.RECEIVER_EXPORTED);
 
         // Force the OS to recognize and bind to the service
-        ComponentName componentName = new ComponentName(this, com.ddelpero.ridebridge.ui.NotificationReceiver.class);
+        ComponentName componentName = new ComponentName(this, NotificationReceiver.class);
         getPackageManager().setComponentEnabledSetting(
                 componentName,
                 PackageManager.COMPONENT_ENABLED_STATE_ENABLED,
@@ -155,14 +148,14 @@ public class MainActivity extends AppCompatActivity {
                 btnPlayPause.setOnClickListener(v -> {
                     // Toggle logic based on the last known state
                     if (isCurrentlyPlaying) {
-                        bm.sendCommandToPhone("PAUSE");
+                        displayController.sendPauseCommand();
                     } else {
-                        bm.sendCommandToPhone("PLAY");
+                        displayController.sendPlayCommand();
                     }
                 });
 
-                findViewById(R.id.btnNext).setOnClickListener(v -> bm.sendCommandToPhone("NEXT"));
-                findViewById(R.id.btnPrev).setOnClickListener(v -> bm.sendCommandToPhone("PREV"));
+                findViewById(R.id.btnNext).setOnClickListener(v -> displayController.sendNextCommand());
+                findViewById(R.id.btnPrev).setOnClickListener(v -> displayController.sendPreviousCommand());
 
             } else {
                 statusLabel.setText("CURRENT MODE: SENDER (PHONE)");
@@ -179,24 +172,19 @@ public class MainActivity extends AppCompatActivity {
             saveAutoStartSettings();
         });
 
-        // 4. Button Listener: Actually triggers the BluetoothManager
+        // 4. Button Listener: Delegates to appropriate controller
         btnStart.setOnClickListener(v -> {
-            android.util.Log.d("RideBridge", "BUTTON_CLICK_PROCESSED"); // ADD THIS LINE HERE
+            android.util.Log.d("RideBridge", "BUTTON_CLICK_PROCESSED");
             checkSystemListenerStatus();
-            // 1. Identify EXACTLY which button instance and thread are running
+            
             int viewHash = System.identityHashCode(v);
             long threadId = Thread.currentThread().getId();
             String timestamp = String.valueOf(System.currentTimeMillis());
 
             android.util.Log.d("RideBridge", "DEBUG PROOF: Click Detected!");
             android.util.Log.d("RideBridge", "DEBUG PROOF: [View ID: " + viewHash + "] [Thread ID: " + threadId + "] [Time: " + timestamp + "]");
-
-            // 2. Check the state BEFORE we do anything
             android.util.Log.d("RideBridge", "DEBUG PROOF: isServiceRunning is currently: " + isServiceRunning);
 
-            // 3. Dump the stack trace to see WHAT triggered this click
-            // This will show up in Logcat and tell us if it's a UI click,
-            // an automated event, or a layout re-draw.
             java.lang.StackTraceElement[] stackTrace = Thread.currentThread().getStackTrace();
             for (int i = 0; i < Math.min(stackTrace.length, 10); i++) {
                 android.util.Log.v("RideBridge", "STACK TRACE [" + i + "]: " + stackTrace[i].toString());
@@ -204,240 +192,120 @@ public class MainActivity extends AppCompatActivity {
 
             isServiceRunning = true;
 
-            boolean isDisplay = roleSwitch.isChecked();
-            if (isDisplay) {
-                statusLabel.setText("Status: Online (Listening...)"); // Add this
-                logView.setText("Waiting for data from Phone...");
-
-                SeekBar seekBar = findViewById(R.id.mediaSeekBar);
-                seekBar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
-                    @Override
-                    public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
-                        // We only care if the USER dragged it, not the auto-ticker
-                        if (fromUser) {
-                            updateTimeLabels(progress, totalDuration);
-                        }
-                    }
-
-                    @Override
-                    public void onStartTrackingTouch(SeekBar seekBar) {
-                        // Optional: Pause the local ticker while dragging so it doesn't fight you
-                    }
-
-                    @Override
-                    public void onStopTrackingTouch(SeekBar seekBar) {
-                        // When the user lets go, send the new position to the Phone
-                        int progress = seekBar.getProgress();
-                        bm.sendCommandToPhone("SEEK:" + progress);
-                    }
-                });
-
-                progressHandler.post(progressRunnable);
-
-                bm.startEmulatorListener(data -> {
-                    runOnUiThread(() -> {
-                        try {
-                            org.json.JSONObject json = new org.json.JSONObject(data);
-                            isCurrentlyPlaying = json.getBoolean("playing");
-
-                            // 1. Update the Play/Pause Icon
-                            if (json.has("playing")) {
-                                android.widget.ImageButton btnPlayPause = findViewById(R.id.btnPlayPause);
-                                if (isCurrentlyPlaying) {
-                                    btnPlayPause.setImageResource(android.R.drawable.ic_media_pause);
-                                } else {
-                                    btnPlayPause.setImageResource(android.R.drawable.ic_media_play);
-                                }
-                            }
-
-                            if (json.has("albumArt")) {
-                                String encodedImage = json.getString("albumArt");
-                                ImageView imgArt = findViewById(R.id.imgAlbumArt);
-
-                                if (!encodedImage.isEmpty()) {
-                                    byte[] decodedString = Base64.decode(encodedImage, Base64.DEFAULT);
-                                    Bitmap decodedByte = BitmapFactory.decodeByteArray(decodedString, 0, decodedString.length);
-
-                                    runOnUiThread(() -> imgArt.setImageBitmap(decodedByte));
-                                } else {
-                                    // Set a default "no art" icon if empty
-                                    runOnUiThread(() -> imgArt.setImageResource(android.R.drawable.ic_menu_gallery));
-                                }
-                            }
-
-                            if (json.has("position") && json.has("duration")) {
-                                long pos = json.getLong("position");
-                                long dur = json.getLong("duration");
-                                //float speed = (float) json.getDouble("speed");
-                                float speed = isCurrentlyPlaying ? (float) json.optDouble("speed", 1.0) : 0.0f;
-                                // If not playing, we force speed to 0 so the 'delta' math doesn't add anything
-
-                                // CALL THE UPDATE HERE
-                                runOnUiThread(() -> {
-                                    updateSeekBarData(pos, dur, speed);
-                                });
-                            }
-
-                            // 2. Update Text Labels
-                            statusLabel.setText("Status: Online (Connected)");
-                            String track = json.optString("track", "Unknown Title");
-                            String artist = json.optString("artist", "Unknown Artist");
-                            logView.setText(track + "\n" + artist);
-
-                        } catch (Exception e) {
-                            // Fallback if the data isn't JSON
-                            logView.setText("RECEIVED: " + data);
-                        }
-                    });
-                }, "TABLET_RECEIVER");
+            boolean isTabletMode = roleSwitch.isChecked();
+            if (isTabletMode) {
+                initializeTabletMode();
             } else {
-                statusLabel.setText("Status: Sender Active");
-                logView.setText("Searching for Media Sessions...");
-
-
-                android.util.Log.d("RideBridge", "DEBUG: Sender mode initiated. Calling syncMedia()...");
-                bm.setServiceActive(true);
-                syncMedia();
+                initializePhoneMode();
             }
-
         });
 
         if (prefs.getBoolean("auto_start", false)) {
-            new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(() -> {
+            new Handler(Looper.getMainLooper()).postDelayed(() -> {
                 android.util.Log.d("RideBridge", "MAIN: Executing Auto-Start");
                 btnStart.performClick();
             }, 1000);
         }
     }
 
-    private void handleRemoteControl(String command) {
-        // We must run this on the Main UI Thread because MediaControllers
-        // prefer being accessed there.
-        runOnUiThread(() -> {
-            try {
-                MediaSessionManager mm = (MediaSessionManager) getSystemService(Context.MEDIA_SESSION_SERVICE);
-                List<MediaController> controllers = mm.getActiveSessions(new ComponentName(this, NotificationReceiver.class));
+    private void initializeTabletMode() {
+        android.util.Log.d("RideBridge", "MAIN: Initializing TABLET (Display) mode");
+        
+        // LAZY INITIALIZATION: Only create DisplayController when entering tablet mode
+        if (displayController == null) {
+            displayController = new DisplayController(bluetoothManager);
+            
+            // Set up display controller listener NOW that we're using it
+            displayController.setDisplayDataListener(mediaData -> {
+                runOnUiThread(() -> {
+                    updateDisplayUI(mediaData);
+                });
+            });
+        }
+        
+        statusLabel.setText("Status: Online (Listening...)");
+        logView.setText("Waiting for data from Phone...");
 
-                if (controllers != null && !controllers.isEmpty()) {
-                    MediaController.TransportControls controls = controllers.get(0).getTransportControls();
-                    android.util.Log.d("RideBridge", "PHONE: Executing " + command);
-
-                    if (command.startsWith("SEEK:")) {
-                        // Extract the millisecond value from "SEEK:12345"
-                        long seekPos = Long.parseLong(command.split(":")[1]);
-                        android.util.Log.d("RideBridge", "PHONE: Seeking to " + seekPos);
-                        controls.seekTo(seekPos);
-                    } else {
-                        switch (command) {
-                            case "PLAY":
-                                controls.play();
-                                break;
-                            case "PAUSE":
-                                controls.pause();
-                                break;
-                            case "NEXT":
-                                controls.skipToNext();
-                                break;
-                            case "PREV":
-                                controls.skipToPrevious();
-                                break;
-                        }
-                    }
+        SeekBar seekBar = findViewById(R.id.mediaSeekBar);
+        seekBar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+            @Override
+            public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
+                if (fromUser) {
+                    updateTimeLabels(progress, totalDuration);
                 }
-            } catch (Exception e) {
-                android.util.Log.e("RideBridge", "PHONE: Control Error: " + e.getMessage());
+            }
+
+            @Override
+            public void onStartTrackingTouch(SeekBar seekBar) {
+                // Optional: Pause the local ticker while dragging
+            }
+
+            @Override
+            public void onStopTrackingTouch(SeekBar seekBar) {
+                int progress = seekBar.getProgress();
+                android.util.Log.d("RideBridge", "MAIN: User seeked to " + progress);
+                displayController.sendSeekCommand(progress);
             }
         });
+
+        progressHandler.post(progressRunnable);
+        displayController.startListening();
     }
 
-    private final MediaController.Callback controllerCallback = new MediaController.Callback() {
-        @Override
-        public void onPlaybackStateChanged(android.media.session.PlaybackState state) {
-            if (state != null) {
-                // This fires precisely when YT Music flips from 2 (Paused) to 3 (Playing)
-                android.util.Log.d("RideBridge", "SENDER: Internal state updated: " + state.getState());
-                syncMedia();
-            }
+    private void initializePhoneMode() {
+        android.util.Log.d("RideBridge", "MAIN: Initializing PHONE (Source) mode");
+        
+        // LAZY INITIALIZATION: Only create SourceController when entering phone mode
+        if (sourceController == null) {
+            sourceController = new SourceController(this, bluetoothManager);
+            
+            // Set up source controller listeners NOW that we're using it
+            sourceController.setSourceDataListener(mediaJson -> {
+                android.util.Log.d("RideBridge", "MAIN: Media data ready from source");
+            });
+
+            sourceController.setRemoteCommandListener(command -> {
+                android.util.Log.d("RideBridge", "MAIN: Remote command received: " + command);
+            });
         }
-    };
+        
+        statusLabel.setText("Status: Sender Active");
+        logView.setText("Searching for Media Sessions...");
 
-    private void syncMedia() {
-        android.util.Log.i("RideBridge", "SENDER: syncMedia execution started"); // TRACE 1
-        try {
-            ComponentName cn = new ComponentName("com.ddelpero.ridebridge", "com.ddelpero.ridebridge.ui.NotificationReceiver");
-            List<MediaController> controllers = mm.getActiveSessions(cn);
-            android.util.Log.d("RideBridge", "SENDER: Found " + controllers.size() + " controllers");
+        sourceController.start();
+    }
 
-            if (controllers != null && !controllers.isEmpty()) {
-                android.util.Log.i("RideBridge", "SENDER: Found " + controllers.size() + " sessions"); // TRACE 2
-                MediaController player = controllers.get(0);
-                MediaMetadata meta = player.getMetadata();
-                String encodedImage = "";
+    private void updateDisplayUI(DisplayController.MediaData mediaData) {
+        android.util.Log.d("RideBridge", "MAIN: Updating display UI with media data");
+        
+        isCurrentlyPlaying = mediaData.isPlaying;
 
-                player.unregisterCallback(controllerCallback); // Prevent duplicates
-                player.registerCallback(controllerCallback);
-
-                // Get Playback State (Playing vs Paused)
-                android.media.session.PlaybackState state = player.getPlaybackState();
-
-                boolean isPlaying = (state != null && state.getState() == android.media.session.PlaybackState.STATE_PLAYING);
-
-                if (meta != null) {
-                    // Try to get the bitmap
-                    Bitmap art = meta.getBitmap(MediaMetadata.METADATA_KEY_ALBUM_ART);
-                    // Fallback: some apps use METADATA_KEY_ART
-                    if (art == null) {
-                        art = meta.getBitmap(MediaMetadata.METADATA_KEY_ART);
-                    }
-
-                    if (art != null) {
-                        ByteArrayOutputStream baos = new ByteArrayOutputStream();
-                        // Compress to JPEG to keep the JSON size manageable
-                        art.compress(Bitmap.CompressFormat.JPEG, 70, baos);
-                        byte[] b = baos.toByteArray();
-                        encodedImage = Base64.encodeToString(b, Base64.DEFAULT);
-                    }
-
-                    long position = (state != null) ? state.getPosition() : 0;
-                    long duration = (meta != null) ? meta.getLong(MediaMetadata.METADATA_KEY_DURATION) : 0;
-
-                    JSONObject json = new JSONObject();
-                    json.put("type", "media");
-                    json.put("artist", meta.getString(MediaMetadata.METADATA_KEY_ARTIST));
-                    json.put("track", meta.getString(MediaMetadata.METADATA_KEY_TITLE));
-                    json.put("playing", isPlaying); // Added playing status
-                    json.put("albumArt", encodedImage);
-                    json.put("position", position);
-                    json.put("duration", duration);
-                    json.put("speed", (state != null) ? state.getPlaybackSpeed() : 0f);
-                    String payload = json.toString();
-                    android.util.Log.d("RideBridge", "SENDER: Preparing to send: " + payload);
-                    bm.sendMessage(payload, command -> {
-                                // This is the implementation of OnMessageReceived
-                                handleRemoteControl(command);
-                            }
-                    );
-                } else {
-                    android.util.Log.d("RideBridge", "SENDER: Player found, but no metadata (is music playing?)");
-                }
+        // 1. Update the Play/Pause Icon
+        if (roleSwitch.isChecked()) {
+            ImageButton btnPlayPause = findViewById(R.id.btnPlayPause);
+            if (isCurrentlyPlaying) {
+                btnPlayPause.setImageResource(android.R.drawable.ic_media_pause);
             } else {
-                android.util.Log.i("RideBridge", "SENDER: No active media sessions found."); // TRACE 3
-                logView.setText("SYSTEM: No Music Playing");
+                btnPlayPause.setImageResource(android.R.drawable.ic_media_play);
             }
-        } catch (SecurityException e) {
-            android.util.Log.e("RideBridge", "SENDER: syncMedia error: " + e.getMessage());
-        } catch (Exception e) {
-            android.util.Log.e("RideBridge", "SENDER: syncMedia error: " + e.getMessage());
         }
+
+        // 2. Update Album Art
+        if (mediaData.albumArt != null) {
+            ImageView imgArt = findViewById(R.id.imgAlbumArt);
+            imgArt.setImageBitmap(mediaData.albumArt);
+        } else {
+            ImageView imgArt = findViewById(R.id.imgAlbumArt);
+            imgArt.setImageResource(android.R.drawable.ic_dialog_info);
+        }
+
+        // 3. Update Seekbar Data
+        updateSeekBarData(mediaData.position, mediaData.duration, mediaData.playbackSpeed);
+
+        // 4. Update Text Labels
+        statusLabel.setText("Status: Online (Connected)");
+        logView.setText(mediaData.track + "\n" + mediaData.artist);
     }
-
-    private long lastPosition = 0;
-    private long totalDuration = 0;
-    private float playbackSpeed = 0;
-    private long lastUpdateTime = 0;
-
-    // Create a handler to "tick" the seekbar
-    private final Handler progressHandler = new Handler(Looper.getMainLooper());
 
     private final Runnable progressRunnable = new Runnable() {
         @Override
@@ -458,7 +326,7 @@ public class MainActivity extends AppCompatActivity {
             SeekBar seekBar = findViewById(R.id.mediaSeekBar);
             if (seekBar != null) {
                 seekBar.setProgress((int) currentPos);
-                updateTimeLabels(currentPos, totalDuration); // This fixes the 0:00 issue
+                updateTimeLabels(currentPos, totalDuration);
             }
 
             progressHandler.postDelayed(this, 500);
@@ -499,6 +367,11 @@ public class MainActivity extends AppCompatActivity {
             unregisterReceiver(mediaSyncReceiver);
         } catch (Exception e) {
             // Already unregistered
+        }
+        
+        // Clean up controllers
+        if (sourceController != null) {
+            sourceController.stop();
         }
     }
 }
