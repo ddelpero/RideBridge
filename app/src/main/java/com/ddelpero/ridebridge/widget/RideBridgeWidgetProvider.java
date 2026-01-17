@@ -124,10 +124,10 @@ public class RideBridgeWidgetProvider extends AppWidgetProvider {
             String command = intent.getStringExtra(COMMAND_KEY);
             Log.d(TAG, "Widget command received: " + command);
             
-            // Send command to service
-            Intent serviceIntent = new Intent(context, RideBridgeService.class);
-            serviceIntent.putExtra("widget_command", command);
-            context.startService(serviceIntent);
+            // Send broadcast to the already-running service
+            Intent broadcastIntent = new Intent("com.ddelpero.ridebridge.WIDGET_COMMAND");
+            broadcastIntent.putExtra("command", command);
+            context.sendBroadcast(broadcastIntent);
         }
     }
 

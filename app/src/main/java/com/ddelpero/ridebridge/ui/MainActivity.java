@@ -13,6 +13,7 @@ import android.widget.TextView;
 import android.widget.ImageButton;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
+import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.ComponentName;
 import android.content.Context;
@@ -26,6 +27,7 @@ import java.util.Locale;
 
 import com.ddelpero.ridebridge.R;
 import com.ddelpero.ridebridge.core.BluetoothManager;
+import com.ddelpero.ridebridge.core.RideBridgeService;
 import com.ddelpero.ridebridge.display.DisplayController;
 import com.ddelpero.ridebridge.source.SourceController;
 
@@ -107,6 +109,9 @@ public class MainActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
+        // Check if app was launched by user or auto-start
+        boolean isAutoStart = getIntent().getBooleanExtra("auto_start", false);
+        
         // 2. Link variables to the XML IDs
         statusLabel = findViewById(R.id.statusLabel);
         logView = findViewById(R.id.logView);
@@ -200,11 +205,19 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
-        if (prefs.getBoolean("auto_start", false)) {
-            new Handler(Looper.getMainLooper()).postDelayed(() -> {
-                android.util.Log.d("RideBridge", "MAIN: Executing Auto-Start");
-                btnStart.performClick();
-            }, 1000);
+        // Handle auto-start: Start service without showing UI
+        if (isAutoStart && prefs.getBoolean("auto_start", false)) {
+            android.util.Log.d("RideBridge", "MAIN: Auto-start detected - starting service silently");
+            Intent serviceIntent = new Intent(this, RideBridgeService.class);
+            serviceIntent.putExtra("auto_start", true);
+            startService(serviceIntent);
+            // Close the activity so only the service runs in background
+            finish();
+        } else if (prefs.getBoolean("auto_start", false)) {
+            // Auto-start preference is enabled but app was opened manually
+            // Start immediately without delay
+            android.util.Log.d("RideBridge", "MAIN: Starting service (auto-start enabled)");
+            btnStart.performClick();
         }
     }
 

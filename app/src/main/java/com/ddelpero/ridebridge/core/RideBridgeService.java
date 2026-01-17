@@ -10,9 +10,12 @@ import android.util.Log;
 import androidx.lifecycle.LiveData;
 import androidx.lifecycle.MutableLiveData;
 
+import com.ddelpero.ridebridge.R;
 import com.ddelpero.ridebridge.display.DisplayController;
 import com.ddelpero.ridebridge.source.SourceController;
 import com.ddelpero.ridebridge.widget.RideBridgeWidgetProvider;
+import android.content.BroadcastReceiver;
+import android.content.Context;
 
 public class RideBridgeService extends Service {
     
@@ -26,6 +29,9 @@ public class RideBridgeService extends Service {
     // Mode tracking
     private boolean isTabletMode = false;
     private boolean modeInitialized = false;
+    
+    // Widget command receiver
+    private BroadcastReceiver widgetCommandReceiver;
     
     // LiveData for UI observation
     private MutableLiveData<String> statusLiveData = new MutableLiveData<>();
@@ -101,18 +107,39 @@ public class RideBridgeService extends Service {
         // Initialize components
         bluetoothManager = new BluetoothManager();
         statusLiveData.setValue("SERVICE: Initializing...");
+        
+        // Register broadcast receiver for widget commands
+        widgetCommandReceiver = new BroadcastReceiver() {
+            @Override
+            public void onReceive(Context context, Intent intent) {
+                if ("com.ddelpero.ridebridge.WIDGET_COMMAND".equals(intent.getAction())) {
+                    String command = intent.getStringExtra("command");
+                    log("SERVICE: Widget command received via broadcast: " + command);
+                    handleWidgetCommand(command);
+                }
+            }
+        };
+        
+        android.content.IntentFilter filter = new android.content.IntentFilter("com.ddelpero.ridebridge.WIDGET_COMMAND");
+        registerReceiver(widgetCommandReceiver, filter, Context.RECEIVER_EXPORTED);
     }
     
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
         log("SERVICE: onStartCommand called");
         
-        // Handle widget commands
+        // Handle widget commands (legacy, for backward compatibility)
         if (intent != null && intent.hasExtra("widget_command")) {
             String command = intent.getStringExtra("widget_command");
             log("SERVICE: Received widget command: " + command);
             handleWidgetCommand(command);
             return START_STICKY;
+        }
+        
+        // Check if this is an auto-start (if so, don't show UI)
+        boolean isAutoStart = intent != null && intent.getBooleanExtra("auto_start", false);
+        if (isAutoStart) {
+            log("SERVICE: Auto-start detected, running silently");
         }
         
         // Only initialize mode once
@@ -253,6 +280,15 @@ public class RideBridgeService extends Service {
     @Override
     public void onDestroy() {
         log("SERVICE: onDestroy called");
+        
+        // Unregister broadcast receiver
+        if (widgetCommandReceiver != null) {
+            try {
+                unregisterReceiver(widgetCommandReceiver);
+            } catch (Exception e) {
+                log("SERVICE: Error unregistering receiver: " + e.getMessage());
+            }
+        }
         
         // Clean up
         if (sourceController != null) {

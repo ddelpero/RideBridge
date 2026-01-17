@@ -24,6 +24,7 @@ public class BootReceiver extends BroadcastReceiver {
             if (autoStart) {
                 Log.d(TAG, "BOOT: Auto-start enabled - starting RideBridgeService");
                 Intent serviceIntent = new Intent(context, RideBridgeService.class);
+                serviceIntent.putExtra("auto_start", true);
                 context.startService(serviceIntent);
             } else {
                 Log.d(TAG, "BOOT: Auto-start disabled");
