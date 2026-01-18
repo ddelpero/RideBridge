@@ -7,6 +7,7 @@ import org.json.JSONObject;
 
 import com.ddelpero.ridebridge.core.BluetoothManager;
 import com.ddelpero.ridebridge.core.RideBridgeService;
+import com.ddelpero.ridebridge.notifications.NotificationData;
 
 public class DisplayController {
 
@@ -15,6 +16,7 @@ public class DisplayController {
     private OnDisplayDataReceived displayListener;
     private OnCommandSend commandSendListener;
     private OnRawDataReceived rawDataListener;
+    private OnNotificationReceived notificationListener;
 
     public interface OnDisplayDataReceived {
         void onMediaDataReceived(MediaData mediaData);
@@ -26,6 +28,10 @@ public class DisplayController {
     
     public interface OnRawDataReceived {
         void onRawDataReceived(String rawJson);
+    }
+    
+    public interface OnNotificationReceived {
+        void onNotificationReceived(NotificationData notification);
     }
 
     public static class MediaData {
@@ -74,6 +80,14 @@ public class DisplayController {
         this.commandSendListener = listener;
     }
     
+    public void setNotificationListener(OnNotificationReceived listener) {
+        this.notificationListener = listener;
+    }
+    
+    public OnNotificationReceived getNotificationListener() {
+        return notificationListener;
+    }
+    
     public void setRawDataListener(OnRawDataReceived listener) {
         this.rawDataListener = listener;
     }
@@ -91,21 +105,38 @@ public class DisplayController {
             
             try {
                 JSONObject json = new JSONObject(data);
-                MediaData mediaData = parseMediaData(json);
+                String type = json.optString("type", "media");
+                
+                if ("notification".equals(type)) {
+                    // Handle incoming notification
+                    NotificationData notification = new NotificationData(
+                        json.getString("appPackage"),
+                        json.getString("appName"),
+                        json.getString("sender"),
+                        json.getString("message")
+                    );
+                    log("DISPLAY: Received notification from " + notification.appName);
+                    if (notificationListener != null) {
+                        notificationListener.onNotificationReceived(notification);
+                    }
+                } else {
+                    // Handle media data
+                    MediaData mediaData = parseMediaData(json);
 
-                log("DISPLAY: Parsed media - track=" + mediaData.track + ", artist=" + mediaData.artist);
-                
-                // Update widget
-                if (service != null) {
-                    service.updateWidget(mediaData);
-                }
-                
-                if (displayListener != null) {
-                    log("DISPLAY: Calling displayListener callback");
-                    displayListener.onMediaDataReceived(mediaData);
+                    log("DISPLAY: Parsed media - track=" + mediaData.track + ", artist=" + mediaData.artist);
+                    
+                    // Update widget
+                    if (service != null) {
+                        service.updateWidget(mediaData);
+                    }
+                    
+                    if (displayListener != null) {
+                        log("DISPLAY: Calling displayListener callback");
+                        displayListener.onMediaDataReceived(mediaData);
+                    }
                 }
             } catch (Exception e) {
-                log("DISPLAY: Error parsing media data: " + e.getMessage());
+                log("DISPLAY: Error parsing data: " + e.getMessage());
                 e.printStackTrace();
             }
         }, "TABLET_RECEIVER");

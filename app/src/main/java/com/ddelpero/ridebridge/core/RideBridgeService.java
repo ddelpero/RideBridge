@@ -51,6 +51,16 @@ public class RideBridgeService extends Service {
         }
     }
     
+    // Expose displayController to MainActivity
+    public DisplayController getDisplayController() {
+        return displayController;
+    }
+    
+    // Expose bluetoothManager for sending test notifications
+    public BluetoothManager getBluetoothManager() {
+        return bluetoothManager;
+    }
+    
     /**
      * Unified logging function that writes to both logcat and UI LiveData
      * Ensures consistency between what's shown in logcat and what's shown in the UI
@@ -116,12 +126,43 @@ public class RideBridgeService extends Service {
                     String command = intent.getStringExtra("command");
                     log("SERVICE: Widget command received via broadcast: " + command);
                     handleWidgetCommand(command);
+                } else if ("com.ddelpero.ridebridge.FORWARD_NOTIFICATION".equals(intent.getAction())) {
+                    String appPackage = intent.getStringExtra("appPackage");
+                    String appName = intent.getStringExtra("appName");
+                    String sender = intent.getStringExtra("sender");
+                    String message = intent.getStringExtra("message");
+                    long timestamp = intent.getLongExtra("timestamp", 0);
+                    
+                    log("SERVICE: Notification received from " + appName);
+                    forwardNotificationViaBluetooth(appPackage, appName, sender, message, timestamp);
                 }
             }
         };
         
         android.content.IntentFilter filter = new android.content.IntentFilter("com.ddelpero.ridebridge.WIDGET_COMMAND");
+        filter.addAction("com.ddelpero.ridebridge.FORWARD_NOTIFICATION");
         registerReceiver(widgetCommandReceiver, filter, Context.RECEIVER_EXPORTED);
+    }
+    
+    private void forwardNotificationViaBluetooth(String appPackage, String appName, String sender, String message, long timestamp) {
+        try {
+            org.json.JSONObject json = new org.json.JSONObject();
+            json.put("type", "notification");
+            json.put("appPackage", appPackage);
+            json.put("appName", appName);
+            json.put("sender", sender);
+            json.put("message", message);
+            json.put("timestamp", timestamp);
+            
+            if (bluetoothManager != null) {
+                log("SERVICE: Sending notification via Bluetooth: " + appName);
+                bluetoothManager.sendMessage(json.toString(), null);
+            } else {
+                log("SERVICE: BluetoothManager not initialized, can't send notification");
+            }
+        } catch (Exception e) {
+            log("SERVICE: Error sending notification: " + e.getMessage());
+        }
     }
     
     @Override
@@ -273,8 +314,55 @@ public class RideBridgeService extends Service {
             log(logJson);
         });
         
-        // Start listening
-        displayController.startListening();
+        // Set notification listener to show system notifications
+        displayController.setNotificationListener(notification -> {
+            showSystemNotification(notification);
+            log("SERVICE: Showing system notification: " + notification.appName);
+        });
+        
+        // Start listening in background thread (blocking call)
+        new Thread(() -> {
+            displayController.startListening();
+        }).start();
+    }
+    
+    private void showSystemNotification(com.ddelpero.ridebridge.notifications.NotificationData notification) {
+        // Check notification permission (Android 13+)
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+            if (androidx.core.content.ContextCompat.checkSelfPermission(
+                    this, android.Manifest.permission.POST_NOTIFICATIONS) 
+                    != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                log("SERVICE: POST_NOTIFICATIONS permission not granted, cannot show notification");
+                return;
+            }
+        }
+        
+        // Create notification channel if needed (Android 8+)
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+            android.app.NotificationChannel channel = new android.app.NotificationChannel(
+                "ridebridge_notifications",
+                "RideBridge Notifications",
+                android.app.NotificationManager.IMPORTANCE_HIGH
+            );
+            android.app.NotificationManager notificationManager = 
+                (android.app.NotificationManager) getSystemService(android.content.Context.NOTIFICATION_SERVICE);
+            notificationManager.createNotificationChannel(channel);
+        }
+        
+        // Create notification
+        androidx.core.app.NotificationCompat.Builder builder = 
+            new androidx.core.app.NotificationCompat.Builder(this, "ridebridge_notifications")
+                .setSmallIcon(android.R.drawable.ic_dialog_info)
+                .setContentTitle(notification.sender)
+                .setContentText(notification.message)
+                .setSubText(notification.appName)
+                .setAutoCancel(true)
+                .setPriority(androidx.core.app.NotificationCompat.PRIORITY_HIGH)
+                .setCategory(androidx.core.app.NotificationCompat.CATEGORY_MESSAGE);
+        
+        android.app.NotificationManager notificationManager = 
+            (android.app.NotificationManager) getSystemService(android.content.Context.NOTIFICATION_SERVICE);
+        notificationManager.notify((int) System.currentTimeMillis(), builder.build());
     }
     
     @Override

@@ -209,7 +209,7 @@ public class SourceController {
     }
 
     private void handleRemoteControl(String command) {
-        Log.d("RideBridge", "SOURCE: Received remote command: " + command);
+        log("SOURCE: Received remote command: " + command);
 
         if (remoteCommandListener != null) {
             remoteCommandListener.onCommandReceived(command);
@@ -217,36 +217,48 @@ public class SourceController {
 
         // Execute the command on the media controller
         try {
-            ComponentName cn = new ComponentName("com.ddelpero.ridebridge", "com.ddelpero.ridebridge.ui.NotificationReceiver");
+            log("SOURCE: Looking for active media sessions...");
+            ComponentName cn = new ComponentName(context.getPackageName(), "com.ddelpero.ridebridge.ui.NotificationReceiver");
             List<MediaController> controllers = mediaSessionManager.getActiveSessions(cn);
 
             if (controllers != null && !controllers.isEmpty()) {
-                MediaController.TransportControls controls = controllers.get(0).getTransportControls();
-                Log.d("RideBridge", "SOURCE: Executing " + command);
+                log("SOURCE: Found " + controllers.size() + " active media sessions");
+                
+                // Use the first available (active) media controller
+                MediaController controller = controllers.get(0);
+                MediaController.TransportControls controls = controller.getTransportControls();
+                log("SOURCE: Got transport controls, executing: " + command);
 
                 if (command.startsWith("SEEK:")) {
                     long seekPos = Long.parseLong(command.split(":")[1]);
-                    Log.d("RideBridge", "SOURCE: Seeking to " + seekPos);
+                    log("SOURCE: Seeking to " + seekPos);
                     controls.seekTo(seekPos);
                 } else {
                     switch (command) {
                         case "PLAY":
+                            log("SOURCE: Calling play()");
                             controls.play();
                             break;
                         case "PAUSE":
+                            log("SOURCE: Calling pause()");
                             controls.pause();
                             break;
                         case "NEXT":
+                            log("SOURCE: Calling skipToNext()");
                             controls.skipToNext();
                             break;
                         case "PREV":
+                            log("SOURCE: Calling skipToPrevious()");
                             controls.skipToPrevious();
                             break;
                     }
                 }
+            } else {
+                log("SOURCE: No active media sessions found! NotificationReceiver may not be enabled.");
             }
         } catch (Exception e) {
-            Log.e("RideBridge", "SOURCE: Control Error: " + e.getMessage());
+            log("SOURCE: Control Error: " + e.getMessage());
+            e.printStackTrace();
         }
     }
 

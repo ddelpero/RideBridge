@@ -9,6 +9,7 @@ import android.view.View;
 import android.graphics.Color;
 import android.widget.Button;
 import android.widget.CheckBox;
+import android.widget.FrameLayout;
 import android.widget.TextView;
 import android.widget.ImageButton;
 import android.widget.ImageView;
@@ -29,6 +30,7 @@ import com.ddelpero.ridebridge.R;
 import com.ddelpero.ridebridge.core.BluetoothManager;
 import com.ddelpero.ridebridge.core.RideBridgeService;
 import com.ddelpero.ridebridge.display.DisplayController;
+import com.ddelpero.ridebridge.notifications.NotificationOverlay;
 import com.ddelpero.ridebridge.source.SourceController;
 
 
@@ -39,6 +41,28 @@ public class MainActivity extends AppCompatActivity {
     private BluetoothManager bluetoothManager = new BluetoothManager();
     private DisplayController displayController;
     private SourceController sourceController;
+    private RideBridgeService boundService;
+    private boolean isServiceBound = false;
+    
+    private final android.content.ServiceConnection serviceConnection = new android.content.ServiceConnection() {
+        @Override
+        public void onServiceConnected(ComponentName name, android.os.IBinder service) {
+            RideBridgeService.LocalBinder binder = (RideBridgeService.LocalBinder) service;
+            boundService = binder.getService();
+            isServiceBound = true;
+            
+            // Get the displayController from the service
+            if (boundService != null) {
+                displayController = boundService.getDisplayController();
+                android.util.Log.d("RideBridge", "MAIN: Got displayController from service");
+            }
+        }
+
+        @Override
+        public void onServiceDisconnected(ComponentName name) {
+            isServiceBound = false;
+        }
+    };
     
     private TextView statusLabel;
     private TextView logView;
@@ -120,6 +144,12 @@ public class MainActivity extends AppCompatActivity {
         autoStartCheckBox = findViewById(R.id.autoStartCheckBox);
         statusIndicator = findViewById(R.id.statusIndicator);
 
+        // Notification checkboxes
+        CheckBox notifyPhone = findViewById(R.id.notifyPhone);
+        CheckBox notifySMS = findViewById(R.id.notifySMS);
+        CheckBox notifyMessenger = findViewById(R.id.notifyMessenger);
+        CheckBox notifyWhatsApp = findViewById(R.id.notifyWhatsApp);
+
         // Don't initialize controllers yet - they're created on-demand
         // based on which mode the user selects (phone vs tablet)
 
@@ -177,6 +207,25 @@ public class MainActivity extends AppCompatActivity {
             saveAutoStartSettings();
         });
 
+        // Set up notification preference checkboxes
+        notifyPhone.setChecked(prefs.getBoolean("notify_com.android.phone", false));
+        notifySMS.setChecked(prefs.getBoolean("notify_com.android.mms", false));
+        notifyMessenger.setChecked(prefs.getBoolean("notify_com.facebook.orca", false));
+        notifyWhatsApp.setChecked(prefs.getBoolean("notify_com.whatsapp", false));
+
+        notifyPhone.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            prefs.edit().putBoolean("notify_com.android.phone", isChecked).apply();
+        });
+        notifySMS.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            prefs.edit().putBoolean("notify_com.android.mms", isChecked).apply();
+        });
+        notifyMessenger.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            prefs.edit().putBoolean("notify_com.facebook.orca", isChecked).apply();
+        });
+        notifyWhatsApp.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            prefs.edit().putBoolean("notify_com.whatsapp", isChecked).apply();
+        });
+
         // 4. Button Listener: Delegates to appropriate controller
         btnStart.setOnClickListener(v -> {
             android.util.Log.d("RideBridge", "BUTTON_CLICK_PROCESSED");
@@ -224,17 +273,32 @@ public class MainActivity extends AppCompatActivity {
     private void initializeTabletMode() {
         android.util.Log.d("RideBridge", "MAIN: Initializing TABLET (Display) mode");
         
-        // LAZY INITIALIZATION: Only create DisplayController when entering tablet mode
-        if (displayController == null) {
-            displayController = new DisplayController(bluetoothManager);
-            
-            // Set up display controller listener NOW that we're using it
-            displayController.setDisplayDataListener(mediaData -> {
-                runOnUiThread(() -> {
-                    updateDisplayUI(mediaData);
+        // Bind to service to get the shared DisplayController
+        Intent serviceIntent = new Intent(this, RideBridgeService.class);
+        bindService(serviceIntent, serviceConnection, Context.BIND_AUTO_CREATE);
+        
+        // Wait a moment for service connection, then set up UI listeners
+        new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(() -> {
+            if (displayController != null) {
+                // Set up display controller listener for updating UI
+                displayController.setDisplayDataListener(mediaData -> {
+                    runOnUiThread(() -> {
+                        updateDisplayUI(mediaData);
+                    });
                 });
-            });
-        }
+                
+                // Set up notification listener to display incoming notifications
+                displayController.setNotificationListener(notification -> {
+                    runOnUiThread(() -> {
+                        // Create and show notification overlay
+                        NotificationOverlay overlay = new NotificationOverlay(MainActivity.this);
+                        overlay.showNotification(notification);
+                    });
+                });
+                
+                android.util.Log.d("RideBridge", "MAIN: DisplayController listeners attached");
+            }
+        }, 500);
         
         statusLabel.setText("Status: Online (Listening...)");
         logView.setText("Waiting for data from Phone...");
@@ -262,7 +326,7 @@ public class MainActivity extends AppCompatActivity {
         });
 
         progressHandler.post(progressRunnable);
-        displayController.startListening();
+        // Socket server now starts in RideBridgeService, not here
     }
 
     private void initializePhoneMode() {
@@ -367,6 +431,12 @@ public class MainActivity extends AppCompatActivity {
             unregisterReceiver(mediaSyncReceiver);
         } catch (Exception e) {
             // Already unregistered
+        }
+        
+        // Unbind from service
+        if (isServiceBound) {
+            unbindService(serviceConnection);
+            isServiceBound = false;
         }
         
         // Clean up controllers

@@ -175,4 +175,13 @@
                 android:padding="5dp" />
         </ScrollView>
     </LinearLayout>
+
+    <!-- TEST NOTIFICATION BUTTON -->
+    <Button
+        android:id="@+id/btnTestNotification"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Test Notification"
+        android:layout_marginTop="10dp"
+        android:background="#FF6B00" />
 </LinearLayout>

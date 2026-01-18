@@ -50,7 +50,10 @@ public class BluetoothManager {
     private OnMessageReceived phoneResponseListener;
 
     public void sendMessage(String message, OnMessageReceived listener) {
-        this.phoneResponseListener = listener; // Save the callback
+        // Only update the listener if a non-null listener is provided (don't overwrite command handlers with null)
+        if (listener != null) {
+            this.phoneResponseListener = listener;
+        }
 
         if (!isActive) {
             android.util.Log.d("RideBridge", "SENDER: Service not started. Blocking message.");

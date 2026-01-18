@@ -156,4 +156,52 @@
         android:filterTouchesWhenObscured="false"
         android:clickable="true"
         android:focusable="true" />
+
+    <!-- Notification Settings Section -->
+    <LinearLayout
+        android:id="@+id/notificationSettingsLayout"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:layout_marginTop="30dp"
+        android:padding="15dp"
+        android:background="#1A1A1A">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Forward Notifications"
+            android:textColor="#FFFFFF"
+            android:textSize="16sp"
+            android:textStyle="bold"
+            android:layout_marginBottom="10dp" />
+
+        <CheckBox
+            android:id="@+id/notifyPhone"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Phone Calls"
+            android:textColor="#B3B3B3" />
+
+        <CheckBox
+            android:id="@+id/notifySMS"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Text Messages"
+            android:textColor="#B3B3B3" />
+
+        <CheckBox
+            android:id="@+id/notifyMessenger"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Facebook Messenger"
+            android:textColor="#B3B3B3" />
+
+        <CheckBox
+            android:id="@+id/notifyWhatsApp"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="WhatsApp"
+            android:textColor="#B3B3B3" />
+    </LinearLayout>
 </LinearLayout>

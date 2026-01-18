@@ -89,6 +89,19 @@ public class SettingsActivity extends AppCompatActivity {
         autoStartCheckBox.setChecked(autoStart);
         updateRoleLabel(isTabletMode);
         
+        // Request POST_NOTIFICATIONS permission on tablet if needed (Android 13+)
+        if (isTabletMode && android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+            if (androidx.core.content.ContextCompat.checkSelfPermission(
+                    this, android.Manifest.permission.POST_NOTIFICATIONS)
+                    != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                androidx.core.app.ActivityCompat.requestPermissions(
+                    this,
+                    new String[]{android.Manifest.permission.POST_NOTIFICATIONS},
+                    1001
+                );
+            }
+        }
+        
         // Role Switch Listener
         roleSwitch.setOnCheckedChangeListener((buttonView, isChecked) -> {
             Log.d(TAG, "SETTINGS: Role switched to " + (isChecked ? "TABLET" : "PHONE"));
@@ -111,6 +124,28 @@ public class SettingsActivity extends AppCompatActivity {
         btnStart.setOnClickListener(v -> {
             Log.d(TAG, "SETTINGS: Start/Stop button clicked");
             toggleService();
+        });
+        
+        // Test Notification Button
+        findViewById(R.id.btnTestNotification).setOnClickListener(v -> {
+            Log.d(TAG, "SETTINGS: Test notification button clicked");
+            if (isBound && rideBridgeService != null) {
+                // Send a test notification to the tablet via Bluetooth
+                try {
+                    org.json.JSONObject testNotif = new org.json.JSONObject();
+                    testNotif.put("type", "notification");
+                    testNotif.put("appPackage", "com.whatsapp");
+                    testNotif.put("appName", "WhatsApp");
+                    testNotif.put("sender", "Test Contact");
+                    testNotif.put("message", "This is a test notification");
+                    testNotif.put("timestamp", System.currentTimeMillis());
+                    
+                    rideBridgeService.getBluetoothManager().sendMessage(testNotif.toString(), null);
+                    Log.d(TAG, "SETTINGS: Test notification sent to tablet");
+                } catch (Exception e) {
+                    Log.e(TAG, "SETTINGS: Error sending test notification: " + e.getMessage());
+                }
+            }
         });
         
         // Auto-start service if enabled
