@@ -251,6 +251,10 @@ public class RideBridgeService extends Service {
                 log("SERVICE: Calling displayController.sendPreviousCommand()");
                 displayController.sendPreviousCommand();
                 break;
+            case "VOICE":
+                log("SERVICE: Calling displayController.sendVoiceCommand()");
+                displayController.sendVoiceCommand();
+                break;
             default:
                 log("SERVICE: Unknown command: " + command);
         }

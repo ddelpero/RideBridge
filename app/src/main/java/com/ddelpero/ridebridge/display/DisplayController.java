@@ -178,41 +178,49 @@ public class DisplayController {
     public void sendPlayCommand() {
         log("DISPLAY: Sending PLAY command");
         bluetoothManager.sendCommandToPhone("PLAY");
-        if (commandSendListener != null) {
-            commandSendListener.onSendCommand("PLAY");
-        }
+        // if (commandSendListener != null) {
+        //     commandSendListener.onSendCommand("PLAY");
+        // }
     }
 
     public void sendPauseCommand() {
         log("DISPLAY: Sending PAUSE command");
         bluetoothManager.sendCommandToPhone("PAUSE");
-        if (commandSendListener != null) {
-            commandSendListener.onSendCommand("PAUSE");
-        }
+        // if (commandSendListener != null) {
+        //     commandSendListener.onSendCommand("PAUSE");
+        // }
     }
 
     public void sendNextCommand() {
         log("DISPLAY: Sending NEXT command");
         bluetoothManager.sendCommandToPhone("NEXT");
-        if (commandSendListener != null) {
-            commandSendListener.onSendCommand("NEXT");
-        }
+        // if (commandSendListener != null) {
+        //     commandSendListener.onSendCommand("NEXT");
+        // }
     }
 
     public void sendPreviousCommand() {
         log("DISPLAY: Sending PREVIOUS command");
         bluetoothManager.sendCommandToPhone("PREV");
-        if (commandSendListener != null) {
-            commandSendListener.onSendCommand("PREV");
-        }
+        // if (commandSendListener != null) {
+        //     commandSendListener.onSendCommand("PREV");
+        // }
     }
 
     public void sendSeekCommand(long positionMs) {
         String command = "SEEK:" + positionMs;
         log("DISPLAY: Sending SEEK command: " + command);
         bluetoothManager.sendCommandToPhone(command);
-        if (commandSendListener != null) {
-            commandSendListener.onSendCommand(command);
-        }
+        // if (commandSendListener != null) {
+        //     commandSendListener.onSendCommand(command);
+        // }
+    }
+
+    public void sendVoiceCommand() {
+        log("DISPLAY: Sending VOICE command");
+        bluetoothManager.sendCommandToPhone("VOICE");
+        // if (commandSendListener != null) {
+        //     commandSendListener.onSendCommand("VOICE");
+        // }
     }
 }

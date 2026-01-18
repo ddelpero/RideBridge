@@ -11,6 +11,7 @@ import android.media.MediaMetadata;
 import android.graphics.Bitmap;
 import android.util.Base64;
 import android.util.Log;
+import android.speech.RecognizerIntent;
 
 import org.json.JSONObject;
 
@@ -76,7 +77,7 @@ public class SourceController {
     public void start() {
         log("SOURCE: Starting source controller (phone/sender mode)...");
         bluetoothManager.setServiceActive(true);
-        
+
         // Register callback for playback state changes once
         mediaControllerCallback = new MediaController.Callback() {
             @Override
@@ -88,7 +89,7 @@ public class SourceController {
                 }
             }
         };
-        
+
         // Register broadcast receiver for SYNC_MEDIA notifications
         syncMediaReceiver = new BroadcastReceiver() {
             @Override
@@ -97,11 +98,11 @@ public class SourceController {
                 syncMediaData();
             }
         };
-        
+
         IntentFilter filter = new IntentFilter("com.ddelpero.SYNC_MEDIA");
         context.registerReceiver(syncMediaReceiver, filter, Context.RECEIVER_EXPORTED);
         log("SOURCE: Registered broadcast receiver for SYNC_MEDIA");
-        
+
         // Initial sync on startup
         syncMediaData();
     }
@@ -110,7 +111,7 @@ public class SourceController {
         log("SOURCE: Stopping source controller...");
         bluetoothManager.setServiceActive(false);
         unregisterMediaCallback();
-        
+
         // Unregister broadcast receiver
         if (syncMediaReceiver != null) {
             try {
@@ -175,11 +176,11 @@ public class SourceController {
                     json.put("speed", (state != null) ? state.getPlaybackSpeed() : 0f);
 
                     String payload = json.toString();
-                    
+
                     log("SOURCE: About to send message via BT");
                     bluetoothManager.sendMessage(payload, this::handleRemoteControl);
                     log("SOURCE: sendMessage returned");
-                    
+
                     log("SOURCE: About to call sourceDataListener, listener is " + (sourceDataListener == null ? "NULL" : "SET"));
                     if (sourceDataListener != null) {
                         log("SOURCE: Calling listener now...");
@@ -223,7 +224,7 @@ public class SourceController {
 
             if (controllers != null && !controllers.isEmpty()) {
                 log("SOURCE: Found " + controllers.size() + " active media sessions");
-                
+
                 // Use the first available (active) media controller
                 MediaController controller = controllers.get(0);
                 MediaController.TransportControls controls = controller.getTransportControls();
@@ -250,6 +251,12 @@ public class SourceController {
                         case "PREV":
                             log("SOURCE: Calling skipToPrevious()");
                             controls.skipToPrevious();
+                            break;
+                        case "VOICE":
+                            Intent assistantIntent = new Intent(Intent.ACTION_VOICE_COMMAND);
+                            assistantIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                            context.startActivity(assistantIntent);
+                            log("SOURCE: Launching voice assistant");
                             break;
                     }
                 }

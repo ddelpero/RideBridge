@@ -189,11 +189,19 @@ public class BluetoothManager {
     public void sendCommandToPhone(String command) {
         if (tabletToPhoneOut != null) {
             new Thread(() -> {
-                tabletToPhoneOut.println(command);
-                Log.d("RideBridge", "TABLET: Sent command: " + command);
+                try {
+                    tabletToPhoneOut.println(command);
+                    if (tabletToPhoneOut.checkError()) {
+                        Log.e("RideBridge", "TABLET: PrintWriter error detected after sending: " + command);
+                    } else {
+                        Log.d("RideBridge", "TABLET: Sent command: " + command);
+                    }
+                } catch (Exception e) {
+                    Log.e("RideBridge", "TABLET: Exception sending command '" + command + "': " + e.getMessage());
+                }
             }).start();
         } else {
-            Log.e("RideBridge", "TABLET: No phone connected to send command to.");
+            Log.e("RideBridge", "TABLET: No phone connected (tabletToPhoneOut is null). Port forward may not be working.");
         }
     }
 

@@ -76,6 +76,9 @@ public class RideBridgeWidgetProvider extends AppWidgetProvider {
             views.setOnClickPendingIntent(R.id.widget_play_pause, 
                 getPendingIntent(context, mediaData.isPlaying ? "PAUSE" : "PLAY"));
             views.setOnClickPendingIntent(R.id.widget_next, getPendingIntent(context, "NEXT"));
+
+            // Voice Command
+            views.setOnClickPendingIntent(R.id.widget_voice_command, getPendingIntent(context, "VOICE"));
             
             appWidgetManager.updateAppWidget(appWidgetId, views);
             Log.d(TAG, "Widget " + appWidgetId + " updated: " + mediaData.track + " | Playing: " + mediaData.isPlaying);

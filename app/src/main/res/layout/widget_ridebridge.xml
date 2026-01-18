@@ -17,6 +17,20 @@
         android:background="#1A1A1A" />
 
     <!-- Track Info -->
+    <ImageButton
+        android:id="@+id/widget_voice_command"
+        android:layout_width="48dp"
+        android:layout_height="48dp"
+        android:layout_marginTop="16dp"
+        android:layout_marginEnd="0dp"
+        android:layout_alignParentTop="true"
+        android:layout_alignParentEnd="true"
+        android:background="@android:color/transparent"
+        android:contentDescription="Voice Command"
+        android:scaleType="centerInside"
+        android:src="@android:drawable/ic_btn_speak_now"
+        android:tint="#FFFFFF" />
+
     <LinearLayout
         android:id="@+id/widget_track_info"
         android:layout_width="match_parent"
