@@ -16,6 +16,7 @@ import android.util.Log;
 import android.view.View;
 import android.widget.Button;
 import android.widget.CheckBox;
+import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
 
@@ -30,12 +31,15 @@ public class SettingsActivity extends AppCompatActivity {
     private SwitchCompat roleSwitch;
     private CheckBox autoStartCheckBox;
     private Button btnStart;
+    private Button btnTestNotification;
     private TextView statusLabel;
     private TextView logView;
     private View statusIndicator;
     private TextView roleLabelText;
     private TextView currentTrackLabel;
     private ScrollView logScrollView;
+    private LinearLayout notificationPreferencesSection;
+    private LinearLayout notificationAppsList;
     
     // Service
     private RideBridgeService rideBridgeService;
@@ -72,12 +76,15 @@ public class SettingsActivity extends AppCompatActivity {
         roleSwitch = findViewById(R.id.roleSwitch);
         autoStartCheckBox = findViewById(R.id.autoStartCheckBox);
         btnStart = findViewById(R.id.btnStart);
+        btnTestNotification = findViewById(R.id.btnTestNotification);
         statusLabel = findViewById(R.id.statusLabel);
         logView = findViewById(R.id.logView);
         statusIndicator = findViewById(R.id.statusIndicator);
         roleLabelText = findViewById(R.id.roleLabelText);
         currentTrackLabel = findViewById(R.id.currentTrackLabel);
         logScrollView = findViewById(R.id.logScrollView);
+        notificationPreferencesSection = findViewById(R.id.notificationPreferencesSection);
+        notificationAppsList = findViewById(R.id.notificationAppsList);
         
         // Load saved preferences
         SharedPreferences prefs = getSharedPreferences("RideBridgePrefs", MODE_PRIVATE);
@@ -88,6 +95,7 @@ public class SettingsActivity extends AppCompatActivity {
         roleSwitch.setChecked(isTabletMode);
         autoStartCheckBox.setChecked(autoStart);
         updateRoleLabel(isTabletMode);
+        updateTestNotificationButtonVisibility(isTabletMode);
         
         // Request POST_NOTIFICATIONS permission on tablet if needed (Android 13+)
         if (isTabletMode && android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
@@ -106,6 +114,8 @@ public class SettingsActivity extends AppCompatActivity {
         roleSwitch.setOnCheckedChangeListener((buttonView, isChecked) -> {
             Log.d(TAG, "SETTINGS: Role switched to " + (isChecked ? "TABLET" : "PHONE"));
             updateRoleLabel(isChecked);
+            updateTestNotificationButtonVisibility(isChecked);
+            updateNotificationPreferencesVisibility(isChecked);
             saveRoleSettings(isChecked);
             
             // Switch service mode if bound
@@ -120,14 +130,20 @@ public class SettingsActivity extends AppCompatActivity {
             saveAutoStartSettings(isChecked);
         });
         
+        // Build dynamic notification app list
+        populateNotificationAppsList(prefs);
+        
+        // Initialize notification preferences visibility (only show in phone mode)
+        updateNotificationPreferencesVisibility(isTabletMode);
+        
         // Start Button
         btnStart.setOnClickListener(v -> {
             Log.d(TAG, "SETTINGS: Start/Stop button clicked");
             toggleService();
         });
         
-        // Test Notification Button
-        findViewById(R.id.btnTestNotification).setOnClickListener(v -> {
+        // Test Notification Button (only visible in phone mode)
+        btnTestNotification.setOnClickListener(v -> {
             Log.d(TAG, "SETTINGS: Test notification button clicked");
             if (isBound && rideBridgeService != null) {
                 // Send a test notification to the tablet via Bluetooth
@@ -164,6 +180,16 @@ public class SettingsActivity extends AppCompatActivity {
         statusLabel.setTextColor(isTabletMode ? Color.GREEN : Color.RED);
     }
     
+    private void updateTestNotificationButtonVisibility(boolean isTabletMode) {
+        // Only show test button in phone mode
+        btnTestNotification.setVisibility(isTabletMode ? View.GONE : View.VISIBLE);
+    }
+    
+    private void updateNotificationPreferencesVisibility(boolean isTabletMode) {
+        // Only show notification preferences in phone mode
+        notificationPreferencesSection.setVisibility(isTabletMode ? View.GONE : View.VISIBLE);
+    }
+    
     private void saveRoleSettings(boolean isTabletMode) {
         SharedPreferences prefs = getSharedPreferences("RideBridgePrefs", MODE_PRIVATE);
         prefs.edit().putBoolean("is_tablet", isTabletMode).apply();
@@ -172,6 +198,90 @@ public class SettingsActivity extends AppCompatActivity {
     private void saveAutoStartSettings(boolean autoStart) {
         SharedPreferences prefs = getSharedPreferences("RideBridgePrefs", MODE_PRIVATE);
         prefs.edit().putBoolean("auto_start", autoStart).apply();
+    }
+    
+    private void populateNotificationAppsList(SharedPreferences prefs) {
+        notificationAppsList.removeAllViews();
+        
+        // Priority apps to show first - these are hardcoded
+        String[] priorityApps = {
+            "com.android.phone",
+            "com.android.messaging",
+            "com.google.android.apps.messaging",
+            "com.android.mms",
+            "com.facebook.orca",
+            "com.whatsapp"
+        };
+        
+        java.util.Set<String> addedApps = new java.util.HashSet<>();
+        android.content.pm.PackageManager pm = getPackageManager();
+        
+        // Add priority apps first (even if system apps)
+        for (String packageName : priorityApps) {
+            try {
+                android.content.pm.ApplicationInfo app = pm.getApplicationInfo(packageName, 0);
+                String appLabel = pm.getApplicationLabel(app).toString();
+                addedApps.add(packageName);
+                addCheckboxForApp(packageName, appLabel, prefs);
+                Log.d(TAG, "SETTINGS: Added priority app: " + appLabel + " (" + packageName + ")");
+            } catch (android.content.pm.PackageManager.NameNotFoundException e) {
+                Log.d(TAG, "SETTINGS: Priority app not found: " + packageName);
+            }
+        }
+        
+        // Get all installed packages
+        java.util.List<android.content.pm.ApplicationInfo> apps = pm.getInstalledApplications(0);
+        Log.d(TAG, "SETTINGS: Found " + apps.size() + " total installed apps");
+        
+        // Debug: log ALL non-system apps
+        for (android.content.pm.ApplicationInfo app : apps) {
+            if ((app.flags & android.content.pm.ApplicationInfo.FLAG_SYSTEM) == 0) {
+                Log.d(TAG, "SETTINGS: Non-system app available: " + app.packageName);
+            }
+        }
+        
+        // Add other apps (EXCLUDE system apps for this part)
+        for (android.content.pm.ApplicationInfo app : apps) {
+            String packageName = app.packageName;
+            if (addedApps.contains(packageName)) continue;
+            
+            // Skip system apps - only show user-installed apps in the dynamic list
+            if ((app.flags & android.content.pm.ApplicationInfo.FLAG_SYSTEM) != 0) continue;
+            
+            // Show ALL non-system apps (user can decide which ones to enable)
+            try {
+                String appLabel = pm.getApplicationLabel(app).toString();
+                addedApps.add(packageName);
+                addCheckboxForApp(packageName, appLabel, prefs);
+                Log.d(TAG, "SETTINGS: Added user app: " + appLabel + " (" + packageName + ")");
+            } catch (Exception e) {
+                Log.w(TAG, "Error getting label for " + packageName);
+            }
+        }
+        
+        Log.d(TAG, "SETTINGS: Total apps added to notification list: " + addedApps.size());
+    }
+    
+    private void addCheckboxForApp(String packageName, String appLabel, SharedPreferences prefs) {
+        CheckBox checkbox = new CheckBox(this);
+        checkbox.setText(appLabel);
+        checkbox.setTextColor(getResources().getColor(android.R.color.darker_gray));
+        checkbox.setTextSize(13);
+        checkbox.setChecked(prefs.getBoolean("notify_" + packageName, false));
+        
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            LinearLayout.LayoutParams.WRAP_CONTENT
+        );
+        params.bottomMargin = 5;
+        checkbox.setLayoutParams(params);
+        
+        checkbox.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            prefs.edit().putBoolean("notify_" + packageName, isChecked).apply();
+            Log.d(TAG, "SETTINGS: " + appLabel + " notifications " + (isChecked ? "enabled" : "disabled"));
+        });
+        
+        notificationAppsList.addView(checkbox);
     }
     
     private void toggleService() {
