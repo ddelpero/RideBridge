@@ -33,6 +33,11 @@ import androidx.core.content.ContextCompat;
 
 import com.ddelpero.ridebridge.R;
 import com.ddelpero.ridebridge.core.RideBridgeService;
+import com.ddelpero.ridebridge.core.EmulatorDetector;
+import android.widget.Spinner;
+import android.widget.ArrayAdapter;
+import android.bluetooth.BluetoothAdapter;
+import android.bluetooth.BluetoothDevice;
 
 public class SettingsActivity extends AppCompatActivity {
 
@@ -51,6 +56,12 @@ public class SettingsActivity extends AppCompatActivity {
     private ScrollView logScrollView;
     private LinearLayout notificationPreferencesSection;
     private LinearLayout notificationAppsList;
+    private Spinner deviceSpinner;
+    private SwitchCompat bluetoothToggle;
+    private Button btnManualConnect;
+    private TextView transportLabel;
+    private LinearLayout transportToggleSection;
+    private LinearLayout deviceSelectorSection;
 
     // Service
     private RideBridgeService rideBridgeService;
@@ -110,6 +121,12 @@ public class SettingsActivity extends AppCompatActivity {
         logScrollView = findViewById(R.id.logScrollView);
         notificationPreferencesSection = findViewById(R.id.notificationPreferencesSection);
         notificationAppsList = findViewById(R.id.notificationAppsList);
+        deviceSpinner = findViewById(R.id.deviceSpinner);
+        bluetoothToggle = findViewById(R.id.bluetoothToggle);
+        btnManualConnect = findViewById(R.id.btnManualConnect);
+        transportLabel = findViewById(R.id.transportLabel);
+        transportToggleSection = findViewById(R.id.transportToggleSection);
+        deviceSelectorSection = findViewById(R.id.deviceSelectorSection);
 
         // Load saved preferences
         SharedPreferences prefs = getSharedPreferences("RideBridgePrefs", MODE_PRIVATE);
@@ -166,6 +183,9 @@ public class SettingsActivity extends AppCompatActivity {
 
         // Initialize notification preferences visibility (only show in phone mode)
         updateNotificationPreferencesVisibility(isTabletMode);
+        
+        // Setup Bluetooth device selector and TCP/Bluetooth toggle
+        setupBluetoothDeviceSelector(prefs, isTabletMode);
 
         // Start Button
         btnStart.setOnClickListener(v -> {
@@ -393,5 +413,147 @@ public class SettingsActivity extends AppCompatActivity {
         }
 
         Log.d(TAG, "SETTINGS: Activity destroyed");
+    }
+    
+    private void setupBluetoothDeviceSelector(SharedPreferences prefs, boolean isTabletMode) {
+        try {
+            // Hide TCP/Bluetooth toggle if emulator (force TCP)
+            if (transportToggleSection != null) {
+                if (EmulatorDetector.isEmulator()) {
+                    Log.d(TAG, "SETTINGS: Emulator detected, hiding TCP/Bluetooth toggle");
+                    transportToggleSection.setVisibility(View.GONE);
+                } else {
+                    transportToggleSection.setVisibility(View.VISIBLE);
+                    
+                    if (bluetoothToggle != null) {
+                        // Set initial toggle state
+                        boolean useBluetoothMode = prefs.getBoolean("use_bluetooth_mode", true);
+                        bluetoothToggle.setChecked(useBluetoothMode);
+                        updateTransportLabel(useBluetoothMode);
+                        
+                        // Bluetooth toggle listener
+                        bluetoothToggle.setOnCheckedChangeListener((buttonView, isChecked) -> {
+                            Log.d(TAG, "SETTINGS: Bluetooth mode toggled to " + isChecked);
+                            prefs.edit().putBoolean("use_bluetooth_mode", isChecked).apply();
+                            updateTransportLabel(isChecked);
+                            
+                            if (isBound && rideBridgeService != null && rideBridgeService.getConnectionManager() != null) {
+                                rideBridgeService.getConnectionManager().setBluetoothMode(isChecked);
+                            }
+                        });
+                    }
+                }
+            }
+            
+            // Populate device spinner
+            if (deviceSpinner != null) {
+                populateBluetoothDevices(prefs);
+            } else {
+                Log.w(TAG, "SETTINGS: deviceSpinner is null");
+            }
+            
+            // Manual connect button
+            if (btnManualConnect != null) {
+                btnManualConnect.setOnClickListener(v -> {
+                    Log.d(TAG, "SETTINGS: Manual connect button clicked");
+                    if (isBound && rideBridgeService != null && rideBridgeService.getConnectionManager() != null) {
+                        rideBridgeService.getConnectionManager().manualConnect();
+                    }
+                });
+            } else {
+                Log.w(TAG, "SETTINGS: btnManualConnect is null");
+            }
+            
+            // Observe connection status
+            if (isBound && rideBridgeService != null && rideBridgeService.getConnectionStatusLiveData() != null) {
+                rideBridgeService.getConnectionStatusLiveData().observe(this, status -> {
+                    Log.d(TAG, "SETTINGS: Connection status changed: " + status);
+                    updateConnectionStatusUI(status);
+                });
+            } else {
+                Log.w(TAG, "SETTINGS: Cannot observe connection status - service not bound or no LiveData");
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "SETTINGS: Error in setupBluetoothDeviceSelector: " + e.getMessage(), e);
+        }
+    }
+    
+    private void populateBluetoothDevices(SharedPreferences prefs) {
+        try {
+            BluetoothAdapter bluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
+            
+            if (bluetoothAdapter == null) {
+                Log.d(TAG, "SETTINGS: Bluetooth not supported");
+                return;
+            }
+            
+            java.util.Set<BluetoothDevice> pairedDevices = bluetoothAdapter.getBondedDevices();
+            java.util.List<String> deviceNames = new java.util.ArrayList<>();
+            java.util.List<String> deviceMACs = new java.util.ArrayList<>();
+            
+            deviceNames.add("(No device selected)");
+            deviceMACs.add("");
+            
+            for (BluetoothDevice device : pairedDevices) {
+                deviceNames.add(device.getName() + " (" + device.getAddress() + ")");
+                deviceMACs.add(device.getAddress());
+            }
+            
+            ArrayAdapter<String> adapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_item, deviceNames);
+            adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+            deviceSpinner.setAdapter(adapter);
+            
+            // Set selected device
+            String savedMAC = prefs.getString("selected_bt_device", "");
+            for (int i = 0; i < deviceMACs.size(); i++) {
+                if (deviceMACs.get(i).equals(savedMAC)) {
+                    deviceSpinner.setSelection(i);
+                    break;
+                }
+            }
+            
+            // Spinner listener
+            deviceSpinner.setOnItemSelectedListener(new android.widget.AdapterView.OnItemSelectedListener() {
+                @Override
+                public void onItemSelected(android.widget.AdapterView<?> parent, View view, int position, long id) {
+                    String selectedMAC = deviceMACs.get(position);
+                    if (!selectedMAC.isEmpty()) {
+                        Log.d(TAG, "SETTINGS: Device selected: " + selectedMAC);
+                        prefs.edit().putString("selected_bt_device", selectedMAC).apply();
+                        
+                        if (isBound && rideBridgeService != null && rideBridgeService.getConnectionManager() != null) {
+                            rideBridgeService.getConnectionManager().selectDevice(selectedMAC);
+                        }
+                    }
+                }
+
+                @Override
+                public void onNothingSelected(android.widget.AdapterView<?> parent) {
+                }
+            });
+        } catch (Exception e) {
+            Log.e(TAG, "SETTINGS: Error populating Bluetooth devices: " + e.getMessage(), e);
+        }
+    }
+    
+    private void updateTransportLabel(boolean useBluetoothMode) {
+        transportLabel.setText(useBluetoothMode ? "Bluetooth" : "TCP");
+    }
+    
+    private void updateConnectionStatusUI(com.ddelpero.ridebridge.core.ConnectionManager.ConnectionStatus status) {
+        switch (status) {
+            case CONNECTED:
+                statusLabel.setText("Status: Connected");
+                statusIndicator.setBackgroundColor(Color.GREEN);
+                break;
+            case CONNECTING:
+                statusLabel.setText("Status: Connecting...");
+                statusIndicator.setBackgroundColor(Color.parseColor("#FFA500")); // Orange
+                break;
+            case DISCONNECTED:
+                statusLabel.setText("Status: Disconnected");
+                statusIndicator.setBackgroundColor(Color.RED);
+                break;
+        }
     }
 }

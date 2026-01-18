@@ -84,6 +84,76 @@
                 android:textSize="14sp" />
         </LinearLayout>
 
+        <!-- TCP/Bluetooth Toggle (Hidden on Emulator) -->
+        <LinearLayout
+            android:id="@+id/transportToggleSection"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:layout_marginBottom="15dp"
+            android:visibility="gone">
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="Connection:"
+                android:textColor="#B3B3B3"
+                android:textSize="14sp" />
+
+            <androidx.appcompat.widget.SwitchCompat
+                android:id="@+id/bluetoothToggle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:scaleX="1.2"
+                android:scaleY="1.2" />
+
+            <TextView
+                android:id="@+id/transportLabel"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="TCP"
+                android:textColor="#FFFFFF"
+                android:textSize="14sp"
+                android:layout_marginStart="10dp" />
+        </LinearLayout>
+
+        <!-- Bluetooth Device Selector -->
+        <LinearLayout
+            android:id="@+id/deviceSelectorSection"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:layout_marginBottom="15dp"
+            android:visibility="visible">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Paired Devices:"
+                android:textColor="#B3B3B3"
+                android:textSize="12sp"
+                android:layout_marginBottom="10dp" />
+
+            <Spinner
+                android:id="@+id/deviceSpinner"
+                android:layout_width="match_parent"
+                android:layout_height="40dp"
+                android:background="#2A2A2A"
+                android:padding="8dp" />
+
+            <Button
+                android:id="@+id/btnManualConnect"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Connect Now"
+                android:textColor="#000000"
+                android:backgroundTint="#FFA500"
+                android:layout_marginTop="8dp"
+                android:textSize="12sp" />
+        </LinearLayout>
+
         <!-- Notification Preferences (Phone Mode Only) -->
         <LinearLayout
             android:id="@+id/notificationPreferencesSection"

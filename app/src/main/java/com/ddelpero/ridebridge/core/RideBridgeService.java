@@ -25,6 +25,7 @@ public class RideBridgeService extends Service {
     private BluetoothManager bluetoothManager;
     private DisplayController displayController;
     private SourceController sourceController;
+    private ConnectionManager connectionManager;
     
     // Mode tracking
     private boolean isTabletMode = false;
@@ -37,6 +38,7 @@ public class RideBridgeService extends Service {
     private MutableLiveData<String> statusLiveData = new MutableLiveData<>();
     private MutableLiveData<String> logLiveData = new MutableLiveData<>();
     private MutableLiveData<MediaState> mediaStateLiveData = new MutableLiveData<>();
+    private MutableLiveData<ConnectionManager.ConnectionStatus> connectionStatusLiveData = new MutableLiveData<>();
     
     // Keep a buffer of recent logs for new observers
     private final java.util.LinkedList<String> logBuffer = new java.util.LinkedList<>();
@@ -59,6 +61,15 @@ public class RideBridgeService extends Service {
     // Expose bluetoothManager for sending test notifications
     public BluetoothManager getBluetoothManager() {
         return bluetoothManager;
+    }
+    
+    // Expose connectionManager for UI control
+    public ConnectionManager getConnectionManager() {
+        return connectionManager;
+    }
+    
+    public LiveData<ConnectionManager.ConnectionStatus> getConnectionStatusLiveData() {
+        return connectionStatusLiveData;
     }
     
     /**
@@ -116,6 +127,12 @@ public class RideBridgeService extends Service {
         
         // Initialize components
         bluetoothManager = new BluetoothManager();
+        connectionManager = new ConnectionManager(this, bluetoothManager);
+        connectionManager.setStatusListener(status -> {
+            log("SERVICE: Connection status: " + status);
+            connectionStatusLiveData.postValue(status);
+        });
+        
         statusLiveData.setValue("SERVICE: Initializing...");
         
         // Register broadcast receiver for widget commands
@@ -201,6 +218,9 @@ public class RideBridgeService extends Service {
         } else {
             startPhoneMode();
         }
+        
+        // Initialize connection manager
+        connectionManager.initializeConnection();
         
         modeInitialized = true;
         
@@ -372,6 +392,11 @@ public class RideBridgeService extends Service {
     @Override
     public void onDestroy() {
         log("SERVICE: onDestroy called");
+        
+        // Cleanup connection manager
+        if (connectionManager != null) {
+            connectionManager.cleanup();
+        }
         
         // Unregister broadcast receiver
         if (widgetCommandReceiver != null) {
