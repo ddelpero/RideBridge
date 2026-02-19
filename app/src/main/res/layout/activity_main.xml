@@ -1,207 +1,178 @@
+<?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/main"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
+    android:background="#121212"
     android:orientation="vertical"
-    android:padding="30dp"
-    android:gravity="center"
-    android:background="#121212">
+    android:padding="5dp"
+    tools:context=".MainActivity">
 
+    <!-- TITLE -->
     <TextView
-        android:id="@+id/statusLabel"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="CURRENT MODE: SENDER (PHONE)"
-        android:textStyle="bold"
+        android:layout_marginBottom="20dp"
+        android:text="RideBridge"
+        android:textColor="#FFFFFF"
         android:textSize="20sp"
-        android:textColor="#B3B3B3" />
+        android:textStyle="bold" />
 
+    <!-- Role Selection -->
     <LinearLayout
-        android:id="@+id/roleAutoStart"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:gravity="center"
-        android:layout_margin="20dp">
+        android:layout_height="33dp"
+        android:layout_margin="1dp"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
 
-        <CheckBox
-            android:id="@+id/autoStartCheckBox"
-            android:layout_width="wrap_content"
+        <TextView
+            android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:text="Auto Start" />
+            android:layout_weight="1"
+            android:text="Mode:"
+            android:textColor="#B3B3B3"
+            android:textSize="14sp" />
 
         <androidx.appcompat.widget.SwitchCompat
             android:id="@+id/roleSwitch"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_margin="20dp"
-            android:scaleX="1.5"
-            android:scaleY="1.5" />
+            android:scaleX="1.2"
+            android:scaleY="1.2" />
+
+        <TextView
+            android:id="@+id/roleLabelText"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="1dp"
+            android:text="Phone"
+            android:textColor="#FFFFFF"
+            android:textSize="14sp" />
+
     </LinearLayout>
 
-    <View
-        android:id="@+id/statusIndicator"
-        android:layout_width="20dp"
-        android:layout_height="20dp"
-        android:background="#FF0000"
-        android:layout_marginTop="20dp" />
-
-    <TextView
-        android:id="@+id/logView"
+    <LinearLayout
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="System: Offline"
-        android:textAlignment="center"
-        android:padding="20dp"
-        android:textColor="#B3B3B3"
-        android:fontFamily="monospace" />
+        android:layout_height="31dp"
+        android:layout_marginBottom="1dp"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
 
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="Auto start:"
+            android:textColor="#B3B3B3"
+            android:textSize="14sp" />
+
+        <androidx.appcompat.widget.SwitchCompat
+            android:id="@+id/autoStartSwitch"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:scaleX="1.2"
+            android:scaleY="1.2" />
+
+        <Space
+            android:layout_width="50dp"
+            android:layout_height="1dp" />
+
+
+    </LinearLayout>
 
     <LinearLayout
-        android:id="@+id/playbackControls"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="vertical"
-        android:gravity="center"
-        android:visibility="gone"
-        android:layout_margin="20dp">
+        android:layout_height="34dp"
+        android:layout_marginBottom="1dp"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
 
-        <ImageView
-            android:id="@+id/imgAlbumArt"
-            android:layout_width="200dp"
-            android:layout_height="200dp"
-            android:layout_marginBottom="20dp"
-            android:scaleType="centerCrop"
-            android:elevation="8dp"
-            android:background="#1A1A1A" />
-
-        <LinearLayout
+        <TextView
+            android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:scaleType="centerCrop"
-            android:layout_width="200dp"
-            android:orientation="horizontal"
-            android:padding="10dp">
+            android:layout_weight="1"
+            android:text="Transport:"
+            android:textColor="#B3B3B3"
+            android:textSize="14sp" />
 
-            <TextView
-                android:id="@+id/txtCurrentTime"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="0:00"
-                android:textColor="#FFFFFF" />
-
-            <SeekBar
-                android:id="@+id/mediaSeekBar"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:progressTint="#FFFFFF"
-                android:thumbTint="#FFFFFF" />
-
-            <TextView
-                android:id="@+id/txtTotalTime"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="0:00"
-                android:textColor="#FFFFFF" />
-        </LinearLayout>
-
-        <LinearLayout
-            android:id="@+id/innerplaybackControls"
-            android:layout_width="match_parent"
+        <androidx.appcompat.widget.SwitchCompat
+            android:id="@+id/transportSwitch"
+            android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:gravity="center"
-            android:layout_margin="20dp">
+            android:checked="true"
+            android:scaleX="1.2"
+            android:scaleY="1.2" />
 
-            <ImageButton
-                android:id="@+id/btnPrev"
-                android:layout_width="48dp"
-                android:layout_height="48dp"
-                android:layout_marginEnd="20dp"
-                android:background="?attr/selectableItemBackgroundBorderless"
-                android:src="@android:drawable/ic_media_previous"
-                android:tint="#FFFFFF"
-                android:scaleType="fitCenter"
-                android:contentDescription="Previous Track" />
+        <TextView
+            android:id="@+id/transportLabelText"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="10dp"
+            android:text="TCP"
+            android:textColor="#FFFFFF"
+            android:textSize="14dp" />
 
-            <ImageButton
-                android:id="@+id/btnPlayPause"
-                android:layout_width="64dp"
-                android:layout_height="64dp"
-                android:layout_margin="10dp"
-                android:background="@drawable/circle_white"
-                android:src="@android:drawable/ic_media_play"
-                android:tint="#000000"
-                android:scaleType="centerInside"
-                android:padding="16dp"
-                android:elevation="4dp" />
 
-            <ImageButton
-                android:id="@+id/btnNext"
-                android:layout_width="48dp"
-                android:layout_height="48dp"
-                android:layout_marginStart="20dp"
-                android:background="?attr/selectableItemBackgroundBorderless"
-                android:src="@android:drawable/ic_media_next"
-                android:tint="#FFFFFF"
-                android:scaleType="fitCenter"
-                android:contentDescription="Next Track" />
-        </LinearLayout>
     </LinearLayout>
 
     <Button
-        android:id="@+id/btnStart"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="Start Service"
-        android:filterTouchesWhenObscured="false"
-        android:clickable="true"
-        android:focusable="true" />
-
-    <!-- Notification Settings Section -->
-    <LinearLayout
-        android:id="@+id/notificationSettingsLayout"
+        android:id="@+id/btn_select_tablet"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="vertical"
-        android:layout_marginTop="30dp"
-        android:padding="15dp"
-        android:background="#1A1A1A">
+        android:text="Select Paired Tablet"
+        android:visibility="gone" />
 
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Forward Notifications"
-            android:textColor="#FFFFFF"
-            android:textSize="16sp"
-            android:textStyle="bold"
-            android:layout_marginBottom="10dp" />
+    <Button
+        android:id="@+id/btnStart"
+        android:layout_width="177dp"
+        android:layout_height="33dp"
+        android:layout_marginTop="10dp"
+        android:backgroundTint="#FFFFFF"
+        android:text="Start Service"
+        android:textColor="#000000" />
 
-        <CheckBox
-            android:id="@+id/notifyPhone"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Phone Calls"
-            android:textColor="#B3B3B3" />
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:layout_marginBottom="15dp"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
 
-        <CheckBox
-            android:id="@+id/notifySMS"
-            android:layout_width="wrap_content"
+        <ScrollView
+            android:id="@+id/logScrollView"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Text Messages"
-            android:textColor="#B3B3B3" />
+            android:layout_weight="1"
+            android:fillViewport="true"
+            android:scrollbars="vertical">
 
-        <CheckBox
-            android:id="@+id/notifyMessenger"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Facebook Messenger"
-            android:textColor="#B3B3B3" />
+            <TextView
+                android:id="@+id/logView"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:fontFamily="monospace"
+                android:padding="5dp"
+                android:text="Waiting for service..."
+                android:textColor="#65B741"
+                android:textSize="10sp" />
+        </ScrollView>
 
-        <CheckBox
-            android:id="@+id/notifyWhatsApp"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="WhatsApp"
-            android:textColor="#B3B3B3" />
+        <!--        <FrameLayout-->
+        <!--            android:id="@+id/widget_container"-->
+        <!--            android:layout_width="300dp"-->
+        <!--            android:layout_height="match_parent"-->
+        <!--            android:visibility="gone"-->
+        <!--             />-->
+        <include
+            android:id="@+id/dashboard_media_player"
+            android:layout_width="300dp"
+            android:layout_height="match_parent"
+            android:visibility="gone"
+            layout="@layout/widget_ridebridge" />
+
+
     </LinearLayout>
+
 </LinearLayout>

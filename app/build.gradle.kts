@@ -5,7 +5,9 @@ plugins {
 android {
     namespace = "com.ddelpero.ridebridge"
     compileSdk {
-        version = release(36)
+        version = release(36) {
+            minorApiLevel = 1
+        }
     }
 
     defaultConfig {
@@ -31,14 +33,20 @@ android {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
     }
+
+//    buildFeatures {
+//        viewBinding = true
+//    }
 }
 
 dependencies {
-    implementation(libs.appcompat)
+    implementation(libs.androidx.core.ktx)
+    implementation(libs.androidx.appcompat)
     implementation(libs.material)
-    implementation(libs.activity)
-    implementation(libs.constraintlayout)
+    implementation(libs.androidx.activity)
+    implementation(libs.androidx.constraintlayout)
     testImplementation(libs.junit)
-    androidTestImplementation(libs.ext.junit)
-    androidTestImplementation(libs.espresso.core)
+    androidTestImplementation(libs.androidx.junit)
+    androidTestImplementation(libs.androidx.espresso.core)
+
 }
