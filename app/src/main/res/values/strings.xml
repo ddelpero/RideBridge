@@ -1,3 +1,16 @@
 <resources>
     <string name="app_name">RideBridge</string>
+    <string name="settings_subtitle">Phone and tablet bridge</string>
+    <string name="status_stopped">Stopped</string>
+    <string name="status_running">Running</string>
+    <string name="section_device">Device</string>
+    <string name="label_mode">Mode</string>
+    <string name="label_auto_start">Auto start</string>
+    <string name="subtitle_auto_start">Launch the bridge when the app opens</string>
+    <string name="label_transport">Transport</string>
+    <string name="select_paired_tablet">Select paired tablet</string>
+    <string name="start_service">Start service</string>
+    <string name="stop_service">Stop service</string>
+    <string name="console_label">Console</string>
+    <string name="waiting_for_service">Waiting for service…</string>
 </resources>

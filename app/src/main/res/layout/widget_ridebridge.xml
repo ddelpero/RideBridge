@@ -44,6 +44,7 @@
         android:contentDescription="Voice Command"
         android:scaleType="centerInside"
         android:src="@android:drawable/ic_media_play"
+        android:visibility="gone"
         app:tint="#FFFFFF" />
 
     <LinearLayout

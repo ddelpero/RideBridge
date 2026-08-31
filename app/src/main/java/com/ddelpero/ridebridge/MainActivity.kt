@@ -6,6 +6,7 @@ import android.bluetooth.BluetoothManager
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.content.res.ColorStateList
 import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
@@ -42,14 +43,6 @@ class MainActivity : AppCompatActivity() {
 
     private var isStarted = false
 
-
-    private val requestMediaLauncher = registerForActivityResult(
-        ActivityResultContracts.RequestPermission()
-    ) { isGranted ->
-        if (isGranted) { /* Media Access Granted */
-        }
-    }
-
     private val requestBluetoothPermissions = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { permissions ->
@@ -59,36 +52,51 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun checkAndRequestPermissions() {
-        val permission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            Manifest.permission.READ_MEDIA_AUDIO
-        } else {
-            Manifest.permission.READ_EXTERNAL_STORAGE
-        }
-
-        if (ContextCompat.checkSelfPermission(
-                this,
-                permission
-            ) != PackageManager.PERMISSION_GRANTED
-        ) {
-            requestMediaLauncher.launch(permission)
-        }
-
         val pkgName = packageName
         val flat = Settings.Secure.getString(contentResolver, "enabled_notification_listeners")
         val isEnabled = flat?.contains(pkgName) == true
 
         if (!isEnabled) {
-            // This permission CANNOT show a popup; you must send the user to Settings
             startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
         }
 
+        val needed = mutableListOf(
+            Manifest.permission.RECORD_AUDIO,
+            Manifest.permission.CALL_PHONE,
+            Manifest.permission.READ_CONTACTS,
+            Manifest.permission.ACCESS_FINE_LOCATION,
+            Manifest.permission.ACCESS_COARSE_LOCATION
+        )
+        needed.add(
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                Manifest.permission.READ_MEDIA_AUDIO
+            } else {
+                Manifest.permission.READ_EXTERNAL_STORAGE
+            }
+        )
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            requestMediaLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+            needed.add(Manifest.permission.POST_NOTIFICATIONS)
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            needed.add(Manifest.permission.BLUETOOTH_CONNECT)
+            needed.add(Manifest.permission.BLUETOOTH_ADVERTISE)
+            needed.add(Manifest.permission.BLUETOOTH_SCAN)
+        }
+        val missing = needed.filter {
+            ContextCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED
+        }
+        if (missing.isNotEmpty()) {
+            requestBluetoothPermissions.launch(missing.toTypedArray())
         }
     }
 
+    private fun updateSelectTabletVisibility(isTablet: Boolean) {
+        findViewById<Button>(R.id.btn_select_tablet).visibility =
+            if (isTablet) View.GONE else View.VISIBLE
+    }
+
     private fun updateRoleLabel(isTabletMode: Boolean) {
-        roleLableText.text = if (isTabletMode) "Tablet" else "Phone"
+        roleLableText.text = if (isTabletMode) "This device is the tablet" else "This device is the phone"
     }
 
     private fun showDashboardMediaPlayer() {
@@ -98,14 +106,32 @@ class MainActivity : AppCompatActivity() {
 
     private fun updateStateButtonText(isRunning: Boolean) {
         val startButton = findViewById<Button>(R.id.btnStart)
-        val text = if (isRunning) "Stop Service" else "Start Service"
-        startButton.setText(text)
+        startButton.text = if (isRunning) getString(R.string.stop_service) else getString(R.string.start_service)
+        if (isRunning) {
+            startButton.backgroundTintList =
+                ColorStateList.valueOf(ContextCompat.getColor(this, R.color.rb_stop))
+            startButton.setTextColor(ContextCompat.getColor(this, R.color.rb_on_stop))
+        } else {
+            startButton.backgroundTintList =
+                ColorStateList.valueOf(ContextCompat.getColor(this, R.color.rb_primary))
+            startButton.setTextColor(ContextCompat.getColor(this, R.color.rb_on_primary))
+        }
+
+        val chip = findViewById<TextView>(R.id.statusChip)
+        if (isRunning) {
+            chip.text = getString(R.string.status_running)
+            chip.setBackgroundResource(R.drawable.bg_chip_running)
+            chip.setTextColor(ContextCompat.getColor(this, R.color.rb_chip_running_text))
+        } else {
+            chip.text = getString(R.string.status_stopped)
+            chip.setBackgroundResource(R.drawable.bg_chip_stopped)
+            chip.setTextColor(ContextCompat.getColor(this, R.color.rb_text_muted))
+        }
     }
 
     private fun updateTransportLabel(isEmulator: Boolean) {
         val transportLabel = findViewById<TextView>(R.id.transportLabelText)
-        val text = if (isEmulator) "TCP" else "BlueTooth"
-        transportLabel.setText(text)
+        transportLabel.text = if (isEmulator) "TCP (emulator)" else "Bluetooth"
     }
 
     // @SuppressLint("MissingPermission")
@@ -167,9 +193,19 @@ class MainActivity : AppCompatActivity() {
         checkAndRequestPermissions()
         setContentView(R.layout.activity_main)
 
-        ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.main)) { v, insets ->
+        val root = findViewById<View>(R.id.main)
+        val padLeft = root.paddingLeft
+        val padTop = root.paddingTop
+        val padRight = root.paddingRight
+        val padBottom = root.paddingBottom
+        ViewCompat.setOnApplyWindowInsetsListener(root) { v, insets ->
             val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
-            v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom)
+            v.setPadding(
+                padLeft + systemBars.left,
+                padTop + systemBars.top,
+                padRight + systemBars.right,
+                padBottom + systemBars.bottom
+            )
             insets
         }
 
@@ -178,7 +214,6 @@ class MainActivity : AppCompatActivity() {
         val albumArt = findViewById<android.widget.ImageView>(R.id.widget_album_art)
         val playPause = findViewById<android.widget.ImageButton>(R.id.widget_play_pause)
         val statusIcon = findViewById<android.widget.ImageView>(R.id.widget_connection_status)
-        val voiceAssist = findViewById<android.widget.ImageButton>(R.id.widget_voice_command)
 
         findViewById<Button>(R.id.btn_select_tablet).setOnClickListener {
             openDevicePicker()
@@ -186,13 +221,6 @@ class MainActivity : AppCompatActivity() {
         playPause.setOnClickListener {
             Log.d("DashboardClick", "POC: Play/Pause button pressed on Dashboard!")
             Manager.sendCommandToClient("PLAY")
-            // Later, you'll call CommunicationManager.sendPlayPause() here
-        }
-
-        voiceAssist.setOnClickListener {
-            Log.d("DashboardClick", "POC: voiceAssist button pressed on Dashboard!")
-            Manager.sendCommandToClient("VOICE_ASSIST")
-            // Later, you'll call CommunicationManager.sendPlayPause() here
         }
 
         MediaManager.liveData.observe(this) { state ->
@@ -222,13 +250,16 @@ class MainActivity : AppCompatActivity() {
 
         transportSwitch = findViewById(R.id.transportSwitch)
         val isEmulator = RideBridgeSettings.isEmulator(this)
+        transportSwitch.isChecked = isEmulator
         updateTransportLabel(isEmulator)
         transportSwitch.setOnCheckedChangeListener { _, isCheckedb ->
             RideBridgeSettings.saveEmulator(this, isCheckedb)
+            updateTransportLabel(isCheckedb)
         }
 
         autoStartSwitch = findViewById(R.id.autoStartSwitch)
         val isAutoStart = RideBridgeSettings.isAutoStart(this)
+        autoStartSwitch.isChecked = isAutoStart
 
         autoStartSwitch.setOnCheckedChangeListener { _, isCheckedb ->
             RideBridgeSettings.saveAutoStart(this, isCheckedb)
@@ -239,18 +270,17 @@ class MainActivity : AppCompatActivity() {
         roleSwitch = findViewById(R.id.roleSwitch)
         isTabletMode = RideBridgeSettings.isTablet(this)
         roleSwitch.isChecked = isTabletMode
+        updateSelectTabletVisibility(isTabletMode)
 
         if (isAutoStart) {
-            // TODO: start
-            autoStartSwitch.isChecked = true
-
             Manager.start(this, isTabletMode, isEmulator)
             updateStateButtonText(true)
+        } else {
+            updateStateButtonText(false)
         }
 
+        updateRoleLabel(isTabletMode)
         if (isTabletMode) {
-            // Update role label
-            updateRoleLabel(isTabletMode)
             showDashboardMediaPlayer()
         }
 
@@ -259,11 +289,11 @@ class MainActivity : AppCompatActivity() {
             this.isTabletMode = isChecked
             updateRoleLabel(isChecked)
             RideBridgeSettings.saveRole(this, isChecked)
+            updateSelectTabletVisibility(isChecked)
         }
 
         logView = findViewById(R.id.logView)
 
-        btnStart = findViewById(R.id.btnStart)
         btnStart = findViewById(R.id.btnStart)
 
         btnStart.setOnClickListener {

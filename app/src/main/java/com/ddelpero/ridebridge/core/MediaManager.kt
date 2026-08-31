@@ -11,6 +11,7 @@ object MediaManager {
 
     var currentState: MediaState? = null
     private var lastTrackName: String? = null // Defined here locally
+    private var lastSentHadArt: Boolean = false
     private var currentBitmap: Bitmap? = null
     private var lastIsPlaying: Boolean? = null
 
@@ -22,9 +23,23 @@ object MediaManager {
         dataTransport = callback
     }
 
+    fun resetTrackCache() {
+        lastTrackName = null
+        lastSentHadArt = false
+    }
+
     fun formatMediaJson(state: MediaState): String {
-        // liveData.postValue(state)
+        val art = state.albumArt.orEmpty()
+        val trackChanged = state.track != lastTrackName
+        val includeArt = art.isNotEmpty() && (trackChanged || !lastSentHadArt)
+        lastTrackName = state.track
+        if (trackChanged && art.isEmpty()) {
+            lastSentHadArt = false
+        } else if (includeArt) {
+            lastSentHadArt = true
+        }
         currentState = state
+        liveData.postValue(state)
         return org.json.JSONObject().apply {
             put("type", "MEDIA")
             put("track", state.track)
@@ -33,8 +48,7 @@ object MediaManager {
             put("position", state.position)
             put("duration", state.duration)
             put("playbackSpeed", state.playbackSpeed)
-            put("albumArt", state.albumArt ?: "")
-            // put("albumArt","")
+            put("albumArt", if (includeArt) art else "")
         }.toString()
     }
 
@@ -43,6 +57,8 @@ object MediaManager {
     fun updateFromJson(jsonString: String, isConnected: Boolean) {
         try {
             val json = org.json.JSONObject(jsonString)
+            val type = json.optString("type")
+            if (type == "NAV" || type == "VOICE" || type == "NOTIF") return
 
             val track = json.optString("track", "Unknown")
             val artist = json.optString("artist", "Unknown")

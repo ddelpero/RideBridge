@@ -1,9 +1,26 @@
-<resources xmlns:tools="http://schemas.android.com/tools">
-    <!-- Base application theme. -->
-    <style name="Base.Theme.RideBridge" parent="Theme.Material3.DayNight.NoActionBar">
-        <!-- Customize your light theme here. -->
-        <!-- <item name="colorPrimary">@color/my_light_primary</item> -->
+<resources>
+    <style name="Base.Theme.RideBridge" parent="Theme.Material3.Dark.NoActionBar">
+        <item name="colorPrimary">@color/rb_primary</item>
+        <item name="colorOnPrimary">@color/rb_on_primary</item>
+        <item name="colorSurface">@color/rb_surface</item>
+        <item name="android:colorBackground">@color/rb_background</item>
+        <item name="android:statusBarColor">@color/rb_background</item>
+        <item name="android:navigationBarColor">@color/rb_background</item>
+        <item name="android:windowBackground">@color/rb_background</item>
+        <item name="android:windowLightStatusBar">false</item>
     </style>
 
     <style name="Theme.RideBridge" parent="Base.Theme.RideBridge" />
+
+    <style name="RideBridgeSettingTitle">
+        <item name="android:textColor">@color/rb_text</item>
+        <item name="android:textSize">16sp</item>
+        <item name="android:textStyle">bold</item>
+        <item name="android:fontFamily">sans-serif-medium</item>
+    </style>
+
+    <style name="RideBridgeSettingSubtitle">
+        <item name="android:textColor">@color/rb_text_muted</item>
+        <item name="android:textSize">13sp</item>
+    </style>
 </resources>

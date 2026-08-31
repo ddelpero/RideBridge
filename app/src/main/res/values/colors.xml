@@ -2,4 +2,20 @@
 <resources>
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
+
+    <color name="rb_background">#FF0C0C10</color>
+    <color name="rb_surface">#FF1A1A22</color>
+    <color name="rb_surface_high">#FF23232E</color>
+    <color name="rb_outline">#FF3A3A48</color>
+    <color name="rb_primary">#FFC9B6FF</color>
+    <color name="rb_on_primary">#FF2C1B5C</color>
+    <color name="rb_text">#FFF4F0FF</color>
+    <color name="rb_text_muted">#FFA8A3B8</color>
+    <color name="rb_log_text">#FF7DDA58</color>
+    <color name="rb_log_bg">#FF10140F</color>
+    <color name="rb_stop">#FFFFB4AB</color>
+    <color name="rb_on_stop">#FF690005</color>
+    <color name="rb_chip_running">#FF1B3D24</color>
+    <color name="rb_chip_stopped">#FF2A2A33</color>
+    <color name="rb_chip_running_text">#FF8EEA9A</color>
 </resources>

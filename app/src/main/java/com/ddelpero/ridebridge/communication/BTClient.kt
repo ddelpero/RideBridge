@@ -64,32 +64,33 @@ class BTClient(context: Context) : DataTransport {
                     val prefs =
                         appContext.getSharedPreferences("RideBridgePrefs", Context.MODE_PRIVATE)
                     val macAddress = prefs.getString("tablet_mac_address", null)
+                    if (macAddress == null) {
+                        Log.e(TAG, "No tablet MAC saved. Select Paired Tablet first.")
+                        delay(3000)
+                        continue
+                    }
 
-                    if (macAddress != null) {
-                        val device = adapter.getRemoteDevice(macAddress) // Direct connection!
-                        socket = device.createRfcommSocketToServiceRecord(uuid)
-                        socket?.connect()
+                    val device = adapter.getRemoteDevice(macAddress)
+                    socket = device.createRfcommSocketToServiceRecord(uuid)
+                    socket?.connect()
+
+                    out = PrintWriter(socket!!.outputStream, true)
+                    val input = BufferedReader(InputStreamReader(socket!!.inputStream))
+
+                    val sendJob = launch {
+                        for (message in sendChannel) {
+                            try {
+                                out?.println(message)
+                            } catch (e: Exception) {
+                                Log.e(TAG, "Send failed: ${e.message}")
+                            }
+                        }
                     }
 
                     _isConnected.value = true
                     onConnectionStateChanged(true)
 
-                    out = PrintWriter(socket!!.outputStream, true)
-                    val input = BufferedReader(InputStreamReader(socket!!.inputStream))
-
-                    // Launch a separate coroutine to handle SENDING messages (Matches TCPClient)
-                    val sendJob = launch {
-                        try {
-                            for (message in sendChannel) {
-                                out?.println(message)
-                            }
-                        } catch (e: Exception) {
-                            Log.d(TAG, "SendJob terminated")
-                        }
-                    }
-
                     try {
-                        // Receiving loop (Matches TCPClient)
                         while (isRunning && socket?.isConnected == true) {
                             val message = input.readLine() ?: break
                             onMessageReceived(message)

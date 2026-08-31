@@ -1,7 +1,12 @@
-<resources xmlns:tools="http://schemas.android.com/tools">
-    <!-- Base application theme. -->
-    <style name="Base.Theme.RideBridge" parent="Theme.Material3.DayNight.NoActionBar">
-        <!-- Customize your dark theme here. -->
-        <!-- <item name="colorPrimary">@color/my_dark_primary</item> -->
+<resources>
+    <style name="Base.Theme.RideBridge" parent="Theme.Material3.Dark.NoActionBar">
+        <item name="colorPrimary">@color/rb_primary</item>
+        <item name="colorOnPrimary">@color/rb_on_primary</item>
+        <item name="colorSurface">@color/rb_surface</item>
+        <item name="android:colorBackground">@color/rb_background</item>
+        <item name="android:statusBarColor">@color/rb_background</item>
+        <item name="android:navigationBarColor">@color/rb_background</item>
+        <item name="android:windowBackground">@color/rb_background</item>
+        <item name="android:windowLightStatusBar">false</item>
     </style>
 </resources>

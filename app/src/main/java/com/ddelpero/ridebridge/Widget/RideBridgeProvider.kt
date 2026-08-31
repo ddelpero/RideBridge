@@ -134,13 +134,6 @@ class RideBridgeWidgetProvider : AppWidgetProvider() {
                         RideBridgeWidgetProvider.ACTION_PREV_TRACK,
                         3
                     )
-                    setWidgetClick(
-                        context,
-                        views,
-                        R.id.widget_voice_command,
-                        RideBridgeWidgetProvider.ACTION_VOICE_ASSIST,
-                        4
-                    )
 
 
                     // Update Album Art (MediaManager already decoded this to a Bitmap)
